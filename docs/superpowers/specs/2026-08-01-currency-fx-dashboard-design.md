@@ -15,7 +15,11 @@ runs the full cross-subsystem integration check and opens the release PR.
 Does **not** depend on Recurring Transactions — the dashboard reads whatever
 `Transaction` rows exist regardless of how they were created, so this
 branch can be built in parallel with Recurring Transactions if a team
-wanted to split the work that way.
+wanted to split the work that way. All UI text goes through this feature's
+own `Dashboard` and `Settings` namespaces in `messages/es.json` /
+`messages/en.json`; all styling uses theme-aware Tailwind tokens (including
+the savings figure's positive/negative color, which must remain legible in
+both light and dark mode). Routes live under `src/app/[locale]/...`.
 
 ## Data model
 

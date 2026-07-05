@@ -10,8 +10,12 @@ Transactions) depends on categories existing, so this is the first business
 feature built after Foundation.
 
 **Depends on:** Foundation (merged to `develop`) — uses the `Category` model,
-`db` singleton, `requireSession()`, the shared `queryKeys` file, and the
-TanStack QueryProvider already wired in the root layout.
+`db` singleton, `requireSession()`, the shared `queryKeys` file, the
+TanStack QueryProvider already wired in the root layout, the `[locale]`
+routing structure (Spanish default, English second), and next-themes.
+All UI text goes through this feature's own `Categories` namespace in
+`messages/es.json` / `messages/en.json`; all styling uses theme-aware
+Tailwind tokens so it renders correctly in both light and dark mode.
 
 ## Data model
 

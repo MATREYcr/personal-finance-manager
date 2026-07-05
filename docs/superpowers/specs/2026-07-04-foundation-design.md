@@ -28,6 +28,8 @@ schema in parallel.
 - Zustand — part of the stack for cross-component UI state; not used unless
   a later feature genuinely needs it (no such need identified yet)
 - Tailwind CSS + shadcn/ui
+- **next-themes** — light/dark mode
+- **next-intl** — internationalization (Spanish + English)
 - Vercel (hosting + Cron jobs)
 - Vitest (unit tests)
 
@@ -76,6 +78,18 @@ Dashboard specs respectively, since that's business logic, not schema.)
 - **Shared client infrastructure**: TanStack QueryClientProvider in the root
   layout, a shared `queryKeys` file that later features extend, shadcn/ui
   components installed.
+- **Light/dark mode**: system-preference by default, with a manual toggle
+  (light/dark/system) available from the nav. Every later feature must
+  style with shadcn's theme-aware Tailwind tokens (`bg-background`,
+  `text-muted-foreground`, `text-destructive`, etc.) rather than hardcoded
+  colors, so it works in both themes without extra work.
+- **Internationalization (Spanish + English)**: every route lives under a
+  `[locale]` URL segment (`/es/dashboard`, `/en/dashboard`); Spanish is the
+  default locale, English the second. All user-facing text goes through
+  `next-intl` translation keys — no hardcoded UI strings in any later
+  feature. Message catalogs live in `messages/es.json` and
+  `messages/en.json`, one top-level namespace per feature (this spec owns
+  `Common` and `Auth`).
 
 ## Error handling
 
@@ -94,3 +108,8 @@ migrates cleanly.
 - Categories, Transactions, Recurring Transactions, and Currency/FX/
   Dashboard each assume this Foundation is merged to `develop` before their
   own branch starts.
+- Each downstream spec adds its own top-level namespace to
+  `messages/es.json` / `messages/en.json` (e.g. `Categories`,
+  `Transactions`, `RecurringTransactions`, `Dashboard`, `Settings`) and its
+  routes live under `src/app/[locale]/...` — this Foundation is what makes
+  that structure exist in the first place.

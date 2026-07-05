@@ -10,8 +10,11 @@ to a category and carries its own currency, so it can be aggregated later
 entered in.
 
 **Depends on:** Foundation and Categories (both merged to `develop`) — uses
-the `Transaction` model, `db`, `requireSession()`, `queryKeys`, and the
-`useCategories()` hook / category-select pattern already built.
+the `Transaction` model, `db`, `requireSession()`, `queryKeys`, the
+`useCategories()` hook / category-select pattern already built, the
+`[locale]` routing structure, and next-themes. All UI text goes through
+this feature's own `Transactions` namespace in `messages/es.json` /
+`messages/en.json`; all styling uses theme-aware Tailwind tokens.
 
 ## Data model
 

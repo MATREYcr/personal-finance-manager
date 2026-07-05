@@ -2,11 +2,11 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Stand up the Next.js scaffold, Supabase/Prisma datasource, the complete domain schema, Better Auth, and a protected app shell — the shared foundation every later feature branch builds on.
+**Goal:** Stand up the Next.js scaffold, Supabase/Prisma datasource, internationalized routing (Spanish default, English second) with light/dark mode, the complete domain schema, Better Auth, and a protected app shell — the shared foundation every later feature branch builds on.
 
-**Architecture:** Next.js 15 App Router, single deployable app. `src/features/<domain>/` holds business logic (populated by later plans); this plan only creates shared infrastructure (`src/lib/`, `prisma/schema.prisma`, `src/middleware.ts`, the root and dashboard-group layouts).
+**Architecture:** Next.js 15 App Router, single deployable app. Every route lives under a `[locale]` segment (`src/app/[locale]/...`); API routes (`src/app/api/...`) are not localized and stay outside it. `src/features/<domain>/` holds business logic (populated by later plans); this plan only creates shared infrastructure (`src/lib/`, `src/i18n/`, `messages/`, `prisma/schema.prisma`, `src/middleware.ts`, the locale/root and dashboard-group layouts).
 
-**Tech Stack:** Next.js 15 (App Router), TypeScript, Tailwind CSS + shadcn/ui, Prisma ORM, Supabase Postgres, Better Auth, TanStack Query, Vitest, npm.
+**Tech Stack:** Next.js 15 (App Router), TypeScript, Tailwind CSS + shadcn/ui, next-intl, next-themes, Prisma ORM, Supabase Postgres, Better Auth, TanStack Query, Vitest, npm.
 
 **Branch:** `feature/foundation` (already checked out). PR target: `develop`. This is the first of five subsystem branches for v1 — no other subsystem branches should exist yet.
 
@@ -15,7 +15,10 @@
 - Package manager is npm for every command in this plan — do not substitute pnpm/yarn.
 - `app/` contains only Next.js routing files (`page.tsx`, `layout.tsx`, `route.ts`). All business logic lives under `src/features/<domain>/` (created by later plans).
 - All UI must be responsive/mobile-first (`w-full`, `max-w-*`, `sm:`/`md:`/`lg:` breakpoints — never fixed pixel widths).
-- This plan does not implement any business feature (no category/transaction CRUD, no dashboard). Its only job is scaffold + schema + auth + shell.
+- All UI must be theme-aware: use shadcn's semantic Tailwind tokens (`bg-background`, `text-foreground`, `text-muted-foreground`, `text-destructive`, `border`, etc.) rather than hardcoded colors like `text-green-600`, so components work in both light and dark without extra work.
+- All user-facing text goes through `next-intl` (`useTranslations` in Client Components, `getTranslations` in Server Components) — never a hardcoded string in JSX. Every later plan adds its own top-level namespace to `messages/es.json` and `messages/en.json`.
+- Locale-aware navigation (`Link`, `useRouter`, `usePathname`, `redirect`) always imports from `@/i18n/navigation`, never from `next/navigation` directly — the wrappers there preserve the current locale automatically.
+- This plan does not implement any business feature (no category/transaction CRUD, no dashboard). Its only job is scaffold + i18n + theming + schema + auth + shell.
 
 ---
 
@@ -23,21 +26,28 @@
 
 ```
 personal-finance-manager/
+├── messages/{es.json,en.json}
 ├── prisma/{schema.prisma,migrations/}
 ├── src/
+│   ├── i18n/{routing.ts,request.ts,navigation.ts}
 │   ├── app/
-│   │   ├── api/auth/[...all]/route.ts
-│   │   ├── (auth)/{sign-in/page.tsx,sign-up/page.tsx}
-│   │   ├── (dashboard)/layout.tsx        ← empty feature pages added by later plans
-│   │   ├── layout.tsx
-│   │   └── page.tsx
-│   ├── components/ui/                    ← shadcn/ui components
+│   │   ├── api/auth/[...all]/route.ts      ← not localized
+│   │   └── [locale]/
+│   │       ├── (auth)/{sign-in/page.tsx,sign-up/page.tsx}
+│   │       ├── (dashboard)/layout.tsx       ← empty feature pages added by later plans
+│   │       ├── layout.tsx
+│   │       └── page.tsx                     ← redirects to /dashboard
+│   ├── components/
+│   │   ├── ui/                              ← shadcn/ui components
+│   │   ├── theme-provider.tsx
+│   │   └── theme-toggle.tsx
 │   ├── lib/
 │   │   ├── auth/{index.ts,client.ts,session.ts}
 │   │   ├── db/index.ts
 │   │   └── query/{client.tsx,keys.ts}
 │   └── middleware.ts
-├── vercel.json                            ← created here empty-ish, appended to by later cron-adding plans
+├── next.config.ts                            ← wrapped with next-intl plugin
+├── vercel.json                               ← created here empty-ish, appended to by later cron-adding plans
 ├── vitest.config.ts
 ├── .env.example
 └── package.json
@@ -53,7 +63,7 @@ personal-finance-manager/
 - Modify: `package.json` (add `test`/`test:watch` scripts)
 
 **Interfaces:**
-- Produces: a running `npm run dev` app, `npm test` running Vitest, shadcn's `cn()` util at `src/lib/utils.ts`.
+- Produces: a running `npm run dev` app, `npm test` running Vitest, shadcn's `cn()` util at `src/lib/utils.ts`, dark-mode-ready CSS variables in `globals.css` (from `shadcn init`).
 
 - [ ] **Step 1: Scaffold the Next.js app**
 
@@ -75,6 +85,8 @@ Expected: HTTP 200.
 ```bash
 npx shadcn@latest init -d
 ```
+
+This also sets up the `.dark` CSS variable overrides in `globals.css` that `next-themes` will toggle in Task 4, and installs `lucide-react` (used for icons, e.g. the theme toggle in Task 4).
 
 - [ ] **Step 4: Add the shadcn components this project will need**
 
@@ -211,16 +223,289 @@ git commit -m "chore(db): configure Prisma with Supabase Postgres datasource"
 
 ---
 
-### Task 3: Better Auth setup
+### Task 3: Internationalization (next-intl) — Spanish default, English second
+
+**Files:**
+- Create: `messages/es.json`
+- Create: `messages/en.json`
+- Create: `src/i18n/routing.ts`
+- Create: `src/i18n/request.ts`
+- Create: `src/i18n/navigation.ts`
+- Modify: `next.config.ts`
+- Create: `src/middleware.ts` (base i18n-only version — Task 5 adds auth protection on top)
+- Create: `src/app/[locale]/layout.tsx` (replaces the default `src/app/layout.tsx` generated in Task 1 — delete that file)
+
+**Interfaces:**
+- Produces: `routing` (locales, defaultLocale) at `@/i18n/routing`; `Link`, `redirect`, `usePathname`, `useRouter`, `getPathname` at `@/i18n/navigation`; the `messages/*.json` catalogs every later plan adds its namespace to.
+
+- [ ] **Step 1: Install next-intl**
+
+```bash
+npm install next-intl
+```
+
+- [ ] **Step 2: Define the supported locales**
+
+```typescript
+// src/i18n/routing.ts
+import { defineRouting } from 'next-intl/routing'
+
+export const routing = defineRouting({
+  locales: ['es', 'en'],
+  defaultLocale: 'es',
+})
+```
+
+- [ ] **Step 3: Request config (which messages to load per request)**
+
+```typescript
+// src/i18n/request.ts
+import { getRequestConfig } from 'next-intl/server'
+import { hasLocale } from 'next-intl'
+import { routing } from './routing'
+
+export default getRequestConfig(async ({ requestLocale }) => {
+  const requested = await requestLocale
+  const locale = hasLocale(routing.locales, requested) ? requested : routing.defaultLocale
+
+  return {
+    locale,
+    messages: (await import(`../../messages/${locale}.json`)).default,
+  }
+})
+```
+
+- [ ] **Step 4: Locale-aware navigation wrappers**
+
+```typescript
+// src/i18n/navigation.ts
+import { createNavigation } from 'next-intl/navigation'
+import { routing } from './routing'
+
+export const { Link, redirect, usePathname, useRouter, getPathname } = createNavigation(routing)
+```
+
+- [ ] **Step 5: Wrap Next config with the next-intl plugin**
+
+```typescript
+// next.config.ts
+import type { NextConfig } from 'next'
+import createNextIntlPlugin from 'next-intl/plugin'
+
+const nextConfig: NextConfig = {}
+
+const withNextIntl = createNextIntlPlugin()
+export default withNextIntl(nextConfig)
+```
+
+- [ ] **Step 6: Initial message catalogs**
+
+```json
+// messages/es.json
+{
+  "Common": {
+    "appName": "Gestor de Finanzas Personales",
+    "loading": "Cargando…"
+  }
+}
+```
+
+```json
+// messages/en.json
+{
+  "Common": {
+    "appName": "Personal Finance Manager",
+    "loading": "Loading…"
+  }
+}
+```
+
+- [ ] **Step 7: Base middleware (locale detection/redirect only — Task 5 layers auth on top)**
+
+```typescript
+// src/middleware.ts
+import createMiddleware from 'next-intl/middleware'
+import { routing } from '@/i18n/routing'
+
+export default createMiddleware(routing)
+
+export const config = {
+  matcher: ['/((?!api|trpc|_next|_vercel|.*\\..*).*)'],
+}
+```
+
+- [ ] **Step 8: Locale layout**
+
+Delete `src/app/layout.tsx` (generated in Task 1) and create:
+
+```typescript
+// src/app/[locale]/layout.tsx
+import type { Metadata } from 'next'
+import { notFound } from 'next/navigation'
+import { hasLocale, NextIntlClientProvider } from 'next-intl'
+import { getTranslations, setRequestLocale } from 'next-intl/server'
+import { routing } from '@/i18n/routing'
+import '../globals.css'
+
+export function generateStaticParams() {
+  return routing.locales.map((locale) => ({ locale }))
+}
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ locale: string }>
+}): Promise<Metadata> {
+  const { locale } = await params
+  const t = await getTranslations({ locale, namespace: 'Common' })
+  return { title: t('appName') }
+}
+
+export default async function LocaleLayout({
+  children,
+  params,
+}: {
+  children: React.ReactNode
+  params: Promise<{ locale: string }>
+}) {
+  const { locale } = await params
+  if (!hasLocale(routing.locales, locale)) notFound()
+  setRequestLocale(locale)
+
+  return (
+    <html lang={locale}>
+      <body>
+        <NextIntlClientProvider>{children}</NextIntlClientProvider>
+      </body>
+    </html>
+  )
+}
+```
+
+> Note the relative import `'../globals.css'` — `globals.css` was generated by Task 1 at `src/app/globals.css` and stays there; only `layout.tsx` moves down into `[locale]/`. Theming (Task 4) and the QueryProvider (Task 7) each add their own wrapper inside `<NextIntlClientProvider>` — do not replace this file wholesale in later tasks, only nest additional providers inside it.
+
+- [ ] **Step 9: Manual verification**
+
+Run `npm run dev`. Visiting `/` redirects to `/es` (default locale) and renders without error (a blank/empty body is expected — no page content exists yet until Task 7's root page). Visiting `/en` directly also works. Visiting `/fr` (unsupported locale) 404s.
+
+- [ ] **Step 10: Commit**
+
+```bash
+git add -A
+git commit -m "feat(i18n): add next-intl routing with Spanish default and English locales"
+```
+
+---
+
+### Task 4: Light/dark mode (next-themes)
+
+**Files:**
+- Create: `src/components/theme-provider.tsx`
+- Create: `src/components/theme-toggle.tsx`
+- Modify: `src/app/[locale]/layout.tsx`
+
+**Interfaces:**
+- Produces: `<ThemeProvider>` (wraps `next-themes`) and `<ThemeToggle>`, consumed by Task 7's nav shell.
+
+- [ ] **Step 1: Install next-themes**
+
+```bash
+npm install next-themes
+```
+
+- [ ] **Step 2: Theme provider**
+
+```typescript
+// src/components/theme-provider.tsx
+'use client'
+import { ThemeProvider as NextThemesProvider } from 'next-themes'
+
+export function ThemeProvider({ children }: { children: React.ReactNode }) {
+  return (
+    <NextThemesProvider attribute="class" defaultTheme="system" enableSystem>
+      {children}
+    </NextThemesProvider>
+  )
+}
+```
+
+- [ ] **Step 3: Theme toggle button**
+
+```typescript
+// src/components/theme-toggle.tsx
+'use client'
+import { useEffect, useState } from 'react'
+import { useTheme } from 'next-themes'
+import { Moon, Sun } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+
+export function ThemeToggle() {
+  const { resolvedTheme, setTheme } = useTheme()
+  const [mounted, setMounted] = useState(false)
+
+  useEffect(() => setMounted(true), [])
+
+  if (!mounted) return null // avoid a hydration mismatch flashing the wrong icon
+
+  return (
+    <Button
+      variant="outline"
+      size="icon"
+      aria-label="Toggle theme"
+      onClick={() => setTheme(resolvedTheme === 'dark' ? 'light' : 'dark')}
+    >
+      {resolvedTheme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+    </Button>
+  )
+}
+```
+
+- [ ] **Step 4: Wrap the locale layout's body with the theme provider**
+
+In `src/app/[locale]/layout.tsx` (from Task 3), nest `<ThemeProvider>` inside `<NextIntlClientProvider>`:
+
+```typescript
+// src/app/[locale]/layout.tsx — only the changed return statement shown
+import { ThemeProvider } from '@/components/theme-provider'
+
+// ...
+  return (
+    <html lang={locale} suppressHydrationWarning>
+      <body>
+        <NextIntlClientProvider>
+          <ThemeProvider>{children}</ThemeProvider>
+        </NextIntlClientProvider>
+      </body>
+    </html>
+  )
+```
+
+Add `suppressHydrationWarning` to `<html>` — `next-themes` sets the `class` attribute on the client before hydration completes, which otherwise logs a harmless warning.
+
+- [ ] **Step 5: Manual verification**
+
+Run `npm run dev`. No visible UI exists yet to click a toggle (that's wired into the nav in Task 7), but confirm no console errors/hydration warnings on `/es` and that the `<html>` element's `class` reflects the OS theme preference (inspect via devtools).
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add -A
+git commit -m "feat(theme): add next-themes light/dark mode support"
+```
+
+---
+
+### Task 5: Better Auth setup
 
 **Files:**
 - Create: `src/lib/auth/index.ts`
 - Create: `src/lib/auth/client.ts`
 - Create: `src/lib/auth/session.ts`
 - Create: `src/app/api/auth/[...all]/route.ts`
-- Create: `src/middleware.ts`
-- Create: `src/app/(auth)/sign-in/page.tsx`
-- Create: `src/app/(auth)/sign-up/page.tsx`
+- Modify: `src/middleware.ts` (layer auth protection on top of the i18n middleware from Task 3)
+- Create: `src/app/[locale]/(auth)/sign-in/page.tsx`
+- Create: `src/app/[locale]/(auth)/sign-up/page.tsx`
+- Modify: `messages/es.json`, `messages/en.json` (add `Auth` namespace)
 - Modify: `prisma/schema.prisma` (adds User/Session/Account/Verification, generated)
 
 **Interfaces:**
@@ -260,7 +545,7 @@ export const auth = betterAuth({
 })
 ```
 
-> The Categories plan will extend this file with a `databaseHooks.user.create.after` hook to seed default categories on signup — that's out of scope here, but leave `betterAuth({...})` as a single exported config object so that later addition is a small, additive edit.
+> The Categories plan will extend this file with a `databaseHooks.user.create.after` hook to seed default categories on signup — leave `betterAuth({...})` as a single exported config object so that later addition is a small, additive edit.
 
 - [ ] **Step 3: Create the browser auth client**
 
@@ -285,13 +570,16 @@ import { headers } from 'next/headers'
 export async function requireSession() {
   const session = await auth.api.getSession({ headers: await headers() })
   if (!session) {
+    // Defensive backstop only — middleware already redirects unauthenticated
+    // requests away from every route that calls this, so this message is
+    // never actually shown to a user and is intentionally not translated.
     throw new Error('Not authenticated')
   }
   return session
 }
 ```
 
-- [ ] **Step 5: Wire the Better Auth API route**
+- [ ] **Step 5: Wire the Better Auth API route (not localized — stays outside `[locale]`)**
 
 ```typescript
 // src/app/api/auth/[...all]/route.ts
@@ -315,15 +603,21 @@ Expected: `prisma/schema.prisma` now also contains `User`, `Session`, `Account`,
 npx prisma migrate dev --name add_better_auth_tables
 ```
 
-- [ ] **Step 8: Add the route-protection middleware**
+- [ ] **Step 8: Layer route protection onto the i18n middleware**
+
+Replace the Task 3 base middleware with the combined version:
 
 ```typescript
 // src/middleware.ts
+import createMiddleware from 'next-intl/middleware'
 import { betterFetch } from '@better-fetch/fetch'
 import type { Session } from 'better-auth/types'
 import { NextResponse, type NextRequest } from 'next/server'
+import { routing } from '@/i18n/routing'
 
-const protectedRoutes = [
+const handleI18nRouting = createMiddleware(routing)
+
+const protectedPaths = [
   '/dashboard',
   '/categories',
   '/transactions',
@@ -332,42 +626,84 @@ const protectedRoutes = [
 ]
 
 export default async function middleware(request: NextRequest) {
-  const { data: session } = await betterFetch<Session>('/api/auth/get-session', {
-    baseURL: request.nextUrl.origin,
-    headers: { cookie: request.headers.get('cookie') ?? '' },
-  })
+  const response = handleI18nRouting(request)
 
-  const isProtected = protectedRoutes.some((route) =>
-    request.nextUrl.pathname.startsWith(route)
-  )
+  const localeMatch = request.nextUrl.pathname.match(/^\/(es|en)(\/|$)/)
+  const pathWithoutLocale = localeMatch
+    ? request.nextUrl.pathname.slice(localeMatch[0].length - (localeMatch[2] ? 1 : 0)) || '/'
+    : request.nextUrl.pathname
 
-  if (isProtected && !session) {
-    return NextResponse.redirect(new URL('/sign-in', request.url))
+  const isProtected = protectedPaths.some((p) => pathWithoutLocale.startsWith(p))
+
+  if (isProtected) {
+    const { data: session } = await betterFetch<Session>('/api/auth/get-session', {
+      baseURL: request.nextUrl.origin,
+      headers: { cookie: request.headers.get('cookie') ?? '' },
+    })
+
+    if (!session) {
+      const locale = localeMatch?.[1] ?? routing.defaultLocale
+      return NextResponse.redirect(new URL(`/${locale}/sign-in`, request.url))
+    }
   }
 
-  return NextResponse.next()
+  return response
 }
 
 export const config = {
-  matcher: ['/((?!.*\\..*|_next|api/auth).*)', '/'],
+  matcher: ['/((?!api|trpc|_next|_vercel|.*\\..*).*)'],
 }
 ```
 
 `betterFetch` ships as a transitive dependency of `better-auth`; if the import fails, run `npm install @better-fetch/fetch`.
 
-- [ ] **Step 9: Sign-in page**
+- [ ] **Step 9: Add the Auth namespace to both message catalogs**
+
+```json
+// messages/es.json — add alongside "Common"
+  "Auth": {
+    "signInTitle": "Iniciar sesión",
+    "signUpTitle": "Crear tu cuenta",
+    "name": "Nombre",
+    "email": "Email",
+    "password": "Contraseña",
+    "signInSubmit": "Entrar",
+    "signUpSubmit": "Registrarme",
+    "signInError": "No se pudo iniciar sesión",
+    "signUpError": "No se pudo crear la cuenta"
+  }
+```
+
+```json
+// messages/en.json — add alongside "Common"
+  "Auth": {
+    "signInTitle": "Sign in",
+    "signUpTitle": "Create your account",
+    "name": "Name",
+    "email": "Email",
+    "password": "Password",
+    "signInSubmit": "Sign in",
+    "signUpSubmit": "Sign up",
+    "signInError": "Could not sign in",
+    "signUpError": "Could not sign up"
+  }
+```
+
+- [ ] **Step 10: Sign-in page**
 
 ```typescript
-// src/app/(auth)/sign-in/page.tsx
+// src/app/[locale]/(auth)/sign-in/page.tsx
 'use client'
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useTranslations } from 'next-intl'
+import { useRouter } from '@/i18n/navigation'
 import { signIn } from '@/lib/auth/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 
 export default function SignInPage() {
+  const t = useTranslations('Auth')
   const router = useRouter()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -378,7 +714,7 @@ export default function SignInPage() {
     setError(null)
     const { error: signInError } = await signIn.email({ email, password })
     if (signInError) {
-      setError(signInError.message ?? 'Could not sign in')
+      setError(signInError.message ?? t('signInError'))
       return
     }
     router.push('/dashboard')
@@ -388,14 +724,14 @@ export default function SignInPage() {
     <div className="flex min-h-screen items-center justify-center p-4">
       <Card className="w-full max-w-sm">
         <CardHeader>
-          <CardTitle>Sign in</CardTitle>
+          <CardTitle>{t('signInTitle')}</CardTitle>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
-            <Input type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} required />
-            <Input type="password" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+            <Input type="email" placeholder={t('email')} value={email} onChange={(e) => setEmail(e.target.value)} required />
+            <Input type="password" placeholder={t('password')} value={password} onChange={(e) => setPassword(e.target.value)} required />
             {error && <p className="text-sm text-destructive">{error}</p>}
-            <Button type="submit" className="w-full">Sign in</Button>
+            <Button type="submit" className="w-full">{t('signInSubmit')}</Button>
           </form>
         </CardContent>
       </Card>
@@ -404,19 +740,21 @@ export default function SignInPage() {
 }
 ```
 
-- [ ] **Step 10: Sign-up page**
+- [ ] **Step 11: Sign-up page**
 
 ```typescript
-// src/app/(auth)/sign-up/page.tsx
+// src/app/[locale]/(auth)/sign-up/page.tsx
 'use client'
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useTranslations } from 'next-intl'
+import { useRouter } from '@/i18n/navigation'
 import { signUp } from '@/lib/auth/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 
 export default function SignUpPage() {
+  const t = useTranslations('Auth')
   const router = useRouter()
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
@@ -428,7 +766,7 @@ export default function SignUpPage() {
     setError(null)
     const { error: signUpError } = await signUp.email({ name, email, password })
     if (signUpError) {
-      setError(signUpError.message ?? 'Could not sign up')
+      setError(signUpError.message ?? t('signUpError'))
       return
     }
     router.push('/dashboard')
@@ -438,15 +776,15 @@ export default function SignUpPage() {
     <div className="flex min-h-screen items-center justify-center p-4">
       <Card className="w-full max-w-sm">
         <CardHeader>
-          <CardTitle>Create your account</CardTitle>
+          <CardTitle>{t('signUpTitle')}</CardTitle>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
-            <Input placeholder="Name" value={name} onChange={(e) => setName(e.target.value)} required />
-            <Input type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} required />
-            <Input type="password" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+            <Input placeholder={t('name')} value={name} onChange={(e) => setName(e.target.value)} required />
+            <Input type="email" placeholder={t('email')} value={email} onChange={(e) => setEmail(e.target.value)} required />
+            <Input type="password" placeholder={t('password')} value={password} onChange={(e) => setPassword(e.target.value)} required />
             {error && <p className="text-sm text-destructive">{error}</p>}
-            <Button type="submit" className="w-full">Sign up</Button>
+            <Button type="submit" className="w-full">{t('signUpSubmit')}</Button>
           </form>
         </CardContent>
       </Card>
@@ -455,11 +793,11 @@ export default function SignUpPage() {
 }
 ```
 
-- [ ] **Step 11: Manual verification**
+- [ ] **Step 12: Manual verification**
 
-Run `npm run dev`, visit `/sign-up`, create an account, confirm redirect to a `/dashboard` URL (a 404 is expected there until Task 5 adds the layout/pages — confirm you're not bounced back to `/sign-in`).
+Run `npm run dev`, visit `/es/sign-up`, create an account, confirm redirect lands on a `/es/dashboard` URL (a 404 is expected there until Task 7 — confirm you're not bounced back to `/es/sign-in`). Repeat on `/en/sign-up` and confirm the form renders in English and lands on `/en/dashboard`.
 
-- [ ] **Step 12: Commit**
+- [ ] **Step 13: Commit**
 
 ```bash
 git add -A
@@ -468,7 +806,7 @@ git commit -m "feat(auth): add Better Auth email/password sign-in and sign-up"
 
 ---
 
-### Task 4: Domain Prisma models (full schema for all v1 subsystems)
+### Task 6: Domain Prisma models (full schema for all v1 subsystems)
 
 **Files:**
 - Modify: `prisma/schema.prisma`
@@ -554,7 +892,7 @@ model ExchangeRate {
 
 - [ ] **Step 2: Add the reverse relations to the Better-Auth-generated User model**
 
-Find `model User { ... }` (generated in Task 3) and add these three lines inside it, alongside `sessions`/`accounts`:
+Find `model User { ... }` (generated in Task 5) and add these three lines inside it, alongside `sessions`/`accounts`:
 
 ```prisma
   categories             Category[]
@@ -577,14 +915,15 @@ git commit -m "feat(schema): add Category, Transaction, RecurringTransaction, Ex
 
 ---
 
-### Task 5: TanStack Query provider, shared query keys, and protected app shell
+### Task 7: TanStack Query provider, shared query keys, and protected app shell
 
 **Files:**
 - Create: `src/lib/query/client.tsx`
 - Create: `src/lib/query/keys.ts`
-- Modify: `src/app/layout.tsx`
-- Create: `src/app/(dashboard)/layout.tsx`
-- Create: `src/app/page.tsx`
+- Modify: `src/app/[locale]/layout.tsx`
+- Create: `src/app/[locale]/(dashboard)/layout.tsx`
+- Create: `src/app/[locale]/page.tsx`
+- Modify: `messages/es.json`, `messages/en.json` (add full `Common.nav` / `Common.actions`)
 
 **Interfaces:**
 - Produces: `<QueryProvider>` wrapping the app, `queryKeys` (extended by every later plan — each adds its own top-level key, e.g. `queryKeys.categories`), the persistent nav shell all authenticated feature pages render inside.
@@ -623,9 +962,27 @@ export function QueryProvider({ children }: { children: React.ReactNode }) {
 }
 ```
 
-Wrap `{children}` in `src/app/layout.tsx`'s root layout with `<QueryProvider>`.
+- [ ] **Step 3: Nest QueryProvider into the locale layout (alongside NextIntlClientProvider + ThemeProvider from Tasks 3-4)**
 
-- [ ] **Step 3: Shared query keys file (later plans add to this, not replace it)**
+```typescript
+// src/app/[locale]/layout.tsx — only the changed return statement shown
+import { QueryProvider } from '@/lib/query/client'
+
+// ...
+  return (
+    <html lang={locale} suppressHydrationWarning>
+      <body>
+        <NextIntlClientProvider>
+          <ThemeProvider>
+            <QueryProvider>{children}</QueryProvider>
+          </ThemeProvider>
+        </NextIntlClientProvider>
+      </body>
+    </html>
+  )
+```
+
+- [ ] **Step 4: Shared query keys file (later plans add to this, not replace it)**
 
 ```typescript
 // src/lib/query/keys.ts
@@ -637,26 +994,76 @@ export const queryKeys = {
 }
 ```
 
-- [ ] **Step 4: Protected-area layout with navigation**
+- [ ] **Step 5: Add full nav/action labels to both message catalogs**
+
+```json
+// messages/es.json — add alongside "Common" (extends the existing "loading"/"appName" keys)
+  "Common": {
+    "appName": "Gestor de Finanzas Personales",
+    "loading": "Cargando…",
+    "nav": {
+      "dashboard": "Panel",
+      "transactions": "Transacciones",
+      "categories": "Categorías",
+      "recurring": "Recurrentes",
+      "settings": "Configuración",
+      "signOut": "Cerrar sesión"
+    },
+    "actions": {
+      "save": "Guardar",
+      "edit": "Editar",
+      "delete": "Eliminar",
+      "cancel": "Cancelar",
+      "new": "Nuevo"
+    }
+  }
+```
+
+```json
+// messages/en.json — add alongside "Common"
+  "Common": {
+    "appName": "Personal Finance Manager",
+    "loading": "Loading…",
+    "nav": {
+      "dashboard": "Dashboard",
+      "transactions": "Transactions",
+      "categories": "Categories",
+      "recurring": "Recurring",
+      "settings": "Settings",
+      "signOut": "Sign out"
+    },
+    "actions": {
+      "save": "Save",
+      "edit": "Edit",
+      "delete": "Delete",
+      "cancel": "Cancel",
+      "new": "New"
+    }
+  }
+```
+
+- [ ] **Step 6: Protected-area layout with navigation, translated and theme-aware**
 
 ```typescript
-// src/app/(dashboard)/layout.tsx
+// src/app/[locale]/(dashboard)/layout.tsx
 'use client'
-import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { useTranslations } from 'next-intl'
+import { Link, usePathname } from '@/i18n/navigation'
 import { signOut } from '@/lib/auth/client'
 import { Button } from '@/components/ui/button'
-
-const links = [
-  { href: '/dashboard', label: 'Dashboard' },
-  { href: '/transactions', label: 'Transactions' },
-  { href: '/categories', label: 'Categories' },
-  { href: '/recurring-transactions', label: 'Recurring' },
-  { href: '/settings', label: 'Settings' },
-]
+import { ThemeToggle } from '@/components/theme-toggle'
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
+  const t = useTranslations('Common.nav')
   const pathname = usePathname()
+
+  const links = [
+    { href: '/dashboard', label: t('dashboard') },
+    { href: '/transactions', label: t('transactions') },
+    { href: '/categories', label: t('categories') },
+    { href: '/recurring-transactions', label: t('recurring') },
+    { href: '/settings', label: t('settings') },
+  ]
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -672,7 +1079,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             </Link>
           ))}
         </div>
-        <Button variant="outline" size="sm" onClick={() => signOut()}>Sign out</Button>
+        <div className="flex items-center gap-2">
+          <ThemeToggle />
+          <Button variant="outline" size="sm" onClick={() => signOut()}>{t('signOut')}</Button>
+        </div>
       </nav>
       <main className="flex-1 w-full">{children}</main>
     </div>
@@ -680,24 +1090,31 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 }
 ```
 
-> This links to five routes that don't have pages yet — that's expected. Each later plan creates its own `src/app/(dashboard)/<feature>/page.tsx`. A 404 on those links until then is correct.
+> This links to five routes that don't have pages yet — that's expected. Each later plan creates its own `src/app/[locale]/(dashboard)/<feature>/page.tsx`. A 404 on those links until then is correct.
 
-- [ ] **Step 5: Root redirect page**
+- [ ] **Step 7: Root redirect page (locale-aware)**
+
+`redirect` from `@/i18n/navigation` requires an explicit `locale` argument (it does not infer it), so read it from the route's `params`:
 
 ```typescript
-// src/app/page.tsx
-import { redirect } from 'next/navigation'
+// src/app/[locale]/page.tsx
+import { redirect } from '@/i18n/navigation'
 
-export default function RootPage() {
-  redirect('/dashboard')
+export default async function RootPage({
+  params,
+}: {
+  params: Promise<{ locale: string }>
+}) {
+  const { locale } = await params
+  redirect({ href: '/dashboard', locale })
 }
 ```
 
-- [ ] **Step 6: Manual verification**
+- [ ] **Step 8: Manual verification**
 
-Run `npm run dev`. Signed out, visiting `/` redirects to `/sign-in`. Signed in, `/` redirects to `/dashboard` (404 page is expected/correct — no dashboard page exists yet), and the nav bar renders with all five links and a working Sign out button.
+Run `npm run dev`. Signed out, visiting `/` redirects to `/es/sign-in`. Signed in, `/` redirects to `/es/dashboard` (404 page is expected/correct — no dashboard page exists yet), the nav bar renders in Spanish with all five links, a working theme toggle, and a working Sign out button. Switch to `/en/...` and confirm the same nav renders in English.
 
-- [ ] **Step 7: Commit**
+- [ ] **Step 9: Commit**
 
 ```bash
 git add -A
@@ -706,7 +1123,7 @@ git commit -m "feat(shell): add TanStack Query provider, shared query keys, and 
 
 ---
 
-### Task 6: Open the PR to develop
+### Task 8: Open the PR to develop
 
 - [ ] **Step 1: Run the full test suite**
 
@@ -719,5 +1136,5 @@ Expected: passes (only the scaffold sanity — no feature tests exist yet in thi
 
 ```bash
 git push -u origin feature/foundation
-gh pr create --base develop --title "Foundation: scaffold, auth, domain schema, app shell" --body "Implements docs/superpowers/specs/2026-07-04-foundation-design.md. Every later v1 subsystem branch (Categories, Transactions, Recurring Transactions, Currency/FX/Dashboard) depends on this being merged first."
+gh pr create --base develop --title "Foundation: scaffold, i18n, theming, auth, domain schema, app shell" --body "Implements docs/superpowers/specs/2026-07-04-foundation-design.md. Every later v1 subsystem branch (Categories, Transactions, Recurring Transactions, Currency/FX/Dashboard) depends on this being merged first."
 ```

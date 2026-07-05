@@ -6,7 +6,7 @@
 
 **Architecture:** `src/features/transactions/` holds queries.ts, actions.ts, hooks/, components/ — same shape as the Categories feature.
 
-**Tech Stack:** Next.js 15, Prisma, Zod, TanStack Query, react-hook-form, shadcn/ui, Vitest.
+**Tech Stack:** Next.js 15, Prisma, Zod, TanStack Query, react-hook-form, shadcn/ui, next-intl, Vitest.
 
 **Branch:** `feature/transactions`, created from `develop` **after** `feature/categories` is merged. PR target: `develop`.
 
@@ -17,13 +17,15 @@
 - `queries.ts` uses `'use cache'` + `cacheTag('transactions')`; `actions.ts` mutations call `revalidateTag('transactions')` after a successful write.
 - A transaction's `categoryId` must be verified to belong to the current user before create/update — never trust a client-supplied id.
 - Do not set or expose `recurringId` anywhere in this plan — it stays null until the Recurring Transactions plan.
+- All routes live under `src/app/[locale]/...`. All user-facing text uses `next-intl` (`useTranslations` in Client Components) under this feature's own `Transactions` namespace — no hardcoded strings. All styling uses shadcn's theme-aware Tailwind tokens (never hardcoded colors).
 
 ## Prerequisites (from Foundation + Categories, already merged)
 
 - `db`, `requireSession()`, `Transaction` model.
 - `queryKeys` at `@/lib/query/keys` (this plan adds a `transactions` key).
-- `useCategories()` hook at `@/features/categories/hooks/useCategories` and `Category` type at `@/features/categories/types` — used for the category-select dropdown.
-- `src/app/(dashboard)/layout.tsx` nav already links to `/transactions`.
+- `useCategories()` hook at `@/features/categories/hooks/useCategories` and `Category` type at `@/features/categories/types` — used for the category-select dropdown. The `Categories` namespace in the message catalogs already provides `typeExpense`/`typeIncome` labels, reused here via `useTranslations('Categories')` where a category type needs to be displayed.
+- `src/app/[locale]/(dashboard)/layout.tsx` nav already links to `/transactions`.
+- `messages/es.json` / `messages/en.json` already contain `Common`, `Auth`, `Categories` — this plan adds a new top-level `Transactions` namespace.
 
 ---
 
@@ -38,7 +40,7 @@ src/features/transactions/
 ├── hooks/{useTransactions.ts,useTransactionMutations.ts}
 └── components/{TransactionFilters.tsx,TransactionFormDialog.tsx,TransactionList.tsx}
 src/app/api/transactions/route.ts
-src/app/(dashboard)/transactions/page.tsx
+src/app/[locale]/(dashboard)/transactions/page.tsx
 ```
 
 ---
@@ -254,6 +256,8 @@ export async function deleteTransaction(id: string) {
 }
 ```
 
+> Note: the category-ownership error thrown here (`'That category does not exist for this user'`) is a defensive/should-never-happen case (the UI only ever offers the current user's own categories in the select) rather than a user-facing validation message, so unlike Categories' `deleteError` it is not translated — it exists purely to fail loudly if the client-sent id is ever wrong or tampered with.
+
 - [ ] **Step 7: Run test to verify it passes**
 
 Run: `npm test -- transactions/actions.test.ts`
@@ -277,7 +281,8 @@ git commit -m "feat(transactions): add CRUD queries/actions with category owners
 - Create: `src/features/transactions/components/TransactionFilters.tsx`
 - Create: `src/features/transactions/components/TransactionFormDialog.tsx`
 - Create: `src/features/transactions/components/TransactionList.tsx`
-- Create: `src/app/(dashboard)/transactions/page.tsx`
+- Create: `src/app/[locale]/(dashboard)/transactions/page.tsx`
+- Modify: `messages/es.json`, `messages/en.json` (add the `Transactions` namespace)
 
 **Interfaces:**
 - Consumes: `getTransactions`/`createTransaction`/`updateTransaction`/`deleteTransaction` (Task 1), `useCategories` (Categories plan), `queryKeys.transactions` (Task 1).
@@ -351,11 +356,56 @@ export function useTransactionMutations() {
 }
 ```
 
-- [ ] **Step 4: Filters bar**
+- [ ] **Step 4: Add the Transactions message keys**
+
+```json
+// messages/es.json — add a new top-level "Transactions" namespace
+  "Transactions": {
+    "title": "Transacciones",
+    "newTransaction": "Nueva transacción",
+    "editTransaction": "Editar transacción",
+    "loading": "Cargando transacciones…",
+    "filterAllTypes": "Todos los tipos",
+    "filterAllCategories": "Todas las categorías",
+    "amount": "Monto",
+    "currency": "Moneda (ej. USD)",
+    "note": "Nota (opcional)",
+    "categoryPlaceholder": "Categoría",
+    "columnDate": "Fecha",
+    "columnCategory": "Categoría",
+    "columnType": "Tipo",
+    "columnAmount": "Monto",
+    "columnActions": "Acciones"
+  }
+```
+
+```json
+// messages/en.json — add a new top-level "Transactions" namespace
+  "Transactions": {
+    "title": "Transactions",
+    "newTransaction": "New transaction",
+    "editTransaction": "Edit transaction",
+    "loading": "Loading transactions…",
+    "filterAllTypes": "All types",
+    "filterAllCategories": "All categories",
+    "amount": "Amount",
+    "currency": "Currency (e.g. USD)",
+    "note": "Note (optional)",
+    "categoryPlaceholder": "Category",
+    "columnDate": "Date",
+    "columnCategory": "Category",
+    "columnType": "Type",
+    "columnAmount": "Amount",
+    "columnActions": "Actions"
+  }
+```
+
+- [ ] **Step 5: Filters bar**
 
 ```typescript
 // src/features/transactions/components/TransactionFilters.tsx
 'use client'
+import { useTranslations } from 'next-intl'
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select'
 import { Input } from '@/components/ui/input'
 import { useCategories } from '@/features/categories/hooks/useCategories'
@@ -369,6 +419,8 @@ export function TransactionFilters({
   filters: Filters
   onChange: (next: Filters) => void
 }) {
+  const t = useTranslations('Transactions')
+  const tCategories = useTranslations('Categories')
   const { data: categories } = useCategories()
 
   return (
@@ -377,11 +429,11 @@ export function TransactionFilters({
         value={filters.type ?? 'ALL'}
         onValueChange={(v) => onChange({ ...filters, type: v === 'ALL' ? undefined : (v as 'EXPENSE' | 'INCOME') })}
       >
-        <SelectTrigger className="w-full sm:w-40"><SelectValue placeholder="Type" /></SelectTrigger>
+        <SelectTrigger className="w-full sm:w-40"><SelectValue placeholder={t('filterAllTypes')} /></SelectTrigger>
         <SelectContent>
-          <SelectItem value="ALL">All types</SelectItem>
-          <SelectItem value="EXPENSE">Expense</SelectItem>
-          <SelectItem value="INCOME">Income</SelectItem>
+          <SelectItem value="ALL">{t('filterAllTypes')}</SelectItem>
+          <SelectItem value="EXPENSE">{tCategories('typeExpense')}</SelectItem>
+          <SelectItem value="INCOME">{tCategories('typeIncome')}</SelectItem>
         </SelectContent>
       </Select>
 
@@ -389,9 +441,9 @@ export function TransactionFilters({
         value={filters.categoryId ?? 'ALL'}
         onValueChange={(v) => onChange({ ...filters, categoryId: v === 'ALL' ? undefined : v })}
       >
-        <SelectTrigger className="w-full sm:w-48"><SelectValue placeholder="Category" /></SelectTrigger>
+        <SelectTrigger className="w-full sm:w-48"><SelectValue placeholder={t('filterAllCategories')} /></SelectTrigger>
         <SelectContent>
-          <SelectItem value="ALL">All categories</SelectItem>
+          <SelectItem value="ALL">{t('filterAllCategories')}</SelectItem>
           {(categories as Category[] | undefined)?.map((c) => (
             <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
           ))}
@@ -415,7 +467,7 @@ export function TransactionFilters({
 }
 ```
 
-- [ ] **Step 5: Create/edit form dialog**
+- [ ] **Step 6: Create/edit form dialog**
 
 ```typescript
 // src/features/transactions/components/TransactionFormDialog.tsx
@@ -423,6 +475,7 @@ export function TransactionFilters({
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
+import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog'
@@ -449,6 +502,9 @@ export function TransactionFormDialog({
   transaction?: TransactionWithCategory
   trigger: React.ReactNode
 }) {
+  const t = useTranslations('Transactions')
+  const tCategories = useTranslations('Categories')
+  const tCommon = useTranslations('Common.actions')
   const { data: categories } = useCategories()
   const { create, update } = useTransactionMutations()
   const form = useForm<FormValues>({
@@ -476,7 +532,7 @@ export function TransactionFormDialog({
       <DialogTrigger asChild>{trigger}</DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>{transaction ? 'Edit transaction' : 'New transaction'}</DialogTitle>
+          <DialogTitle>{transaction ? t('editTransaction') : t('newTransaction')}</DialogTitle>
         </DialogHeader>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
           <Select
@@ -485,27 +541,27 @@ export function TransactionFormDialog({
           >
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="EXPENSE">Expense</SelectItem>
-              <SelectItem value="INCOME">Income</SelectItem>
+              <SelectItem value="EXPENSE">{tCategories('typeExpense')}</SelectItem>
+              <SelectItem value="INCOME">{tCategories('typeIncome')}</SelectItem>
             </SelectContent>
           </Select>
           <Select
             defaultValue={form.getValues('categoryId')}
             onValueChange={(v) => form.setValue('categoryId', v)}
           >
-            <SelectTrigger><SelectValue placeholder="Category" /></SelectTrigger>
+            <SelectTrigger><SelectValue placeholder={t('categoryPlaceholder')} /></SelectTrigger>
             <SelectContent>
               {(categories as Category[] | undefined)?.map((c) => (
                 <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
               ))}
             </SelectContent>
           </Select>
-          <Input type="number" step="0.01" placeholder="Amount" {...form.register('amount')} />
-          <Input placeholder="Currency (e.g. USD)" maxLength={3} {...form.register('currency')} />
+          <Input type="number" step="0.01" placeholder={t('amount')} {...form.register('amount')} />
+          <Input placeholder={t('currency')} maxLength={3} {...form.register('currency')} />
           <Input type="date" {...form.register('date')} />
-          <Input placeholder="Note (optional)" {...form.register('note')} />
+          <Input placeholder={t('note')} {...form.register('note')} />
           <DialogFooter>
-            <Button type="submit" disabled={create.isPending || update.isPending}>Save</Button>
+            <Button type="submit" disabled={create.isPending || update.isPending}>{tCommon('save')}</Button>
           </DialogFooter>
         </form>
       </DialogContent>
@@ -514,12 +570,13 @@ export function TransactionFormDialog({
 }
 ```
 
-- [ ] **Step 6: List**
+- [ ] **Step 7: List**
 
 ```typescript
 // src/features/transactions/components/TransactionList.tsx
 'use client'
 import { useState } from 'react'
+import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { useTransactions } from '../hooks/useTransactions'
@@ -529,6 +586,9 @@ import { TransactionFormDialog } from './TransactionFormDialog'
 import type { TransactionFilters as Filters, TransactionWithCategory } from '../types'
 
 export function TransactionList() {
+  const t = useTranslations('Transactions')
+  const tCategories = useTranslations('Categories')
+  const tCommon = useTranslations('Common.actions')
   const [filters, setFilters] = useState<Filters>({})
   const { data: transactions, isLoading } = useTransactions(filters)
   const { remove } = useTransactionMutations()
@@ -537,21 +597,21 @@ export function TransactionList() {
     <div className="space-y-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <TransactionFilters filters={filters} onChange={setFilters} />
-        <TransactionFormDialog trigger={<Button>New transaction</Button>} />
+        <TransactionFormDialog trigger={<Button>{t('newTransaction')}</Button>} />
       </div>
 
       {isLoading ? (
-        <p>Loading transactions…</p>
+        <p>{t('loading')}</p>
       ) : (
         <div className="w-full overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Date</TableHead>
-                <TableHead>Category</TableHead>
-                <TableHead>Type</TableHead>
-                <TableHead className="text-right">Amount</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
+                <TableHead>{t('columnDate')}</TableHead>
+                <TableHead>{t('columnCategory')}</TableHead>
+                <TableHead>{t('columnType')}</TableHead>
+                <TableHead className="text-right">{t('columnAmount')}</TableHead>
+                <TableHead className="text-right">{t('columnActions')}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -559,11 +619,11 @@ export function TransactionList() {
                 <TableRow key={tx.id}>
                   <TableCell>{new Date(tx.date).toLocaleDateString()}</TableCell>
                   <TableCell>{tx.category.name}</TableCell>
-                  <TableCell>{tx.type}</TableCell>
+                  <TableCell>{tx.type === 'EXPENSE' ? tCategories('typeExpense') : tCategories('typeIncome')}</TableCell>
                   <TableCell className="text-right">{Number(tx.amount).toFixed(2)} {tx.currency}</TableCell>
                   <TableCell className="text-right space-x-2">
-                    <TransactionFormDialog transaction={tx} trigger={<Button variant="outline" size="sm">Edit</Button>} />
-                    <Button variant="destructive" size="sm" onClick={() => remove.mutate(tx.id)}>Delete</Button>
+                    <TransactionFormDialog transaction={tx} trigger={<Button variant="outline" size="sm">{tCommon('edit')}</Button>} />
+                    <Button variant="destructive" size="sm" onClick={() => remove.mutate(tx.id)}>{tCommon('delete')}</Button>
                   </TableCell>
                 </TableRow>
               ))}
@@ -576,27 +636,29 @@ export function TransactionList() {
 }
 ```
 
-- [ ] **Step 7: Page**
+- [ ] **Step 8: Page**
 
 ```typescript
-// src/app/(dashboard)/transactions/page.tsx
+// src/app/[locale]/(dashboard)/transactions/page.tsx
+import { getTranslations } from 'next-intl/server'
 import { TransactionList } from '@/features/transactions/components/TransactionList'
 
-export default function TransactionsPage() {
+export default async function TransactionsPage() {
+  const t = await getTranslations('Transactions')
   return (
     <div className="p-4 md:p-6">
-      <h1 className="text-2xl font-semibold mb-4">Transactions</h1>
+      <h1 className="text-2xl font-semibold mb-4">{t('title')}</h1>
       <TransactionList />
     </div>
   )
 }
 ```
 
-- [ ] **Step 8: Manual verification**
+- [ ] **Step 9: Manual verification**
 
-Run `npm run dev`, visit `/transactions`. Create an expense and an income transaction in different currencies, confirm they list correctly, edit one, delete one, confirm the type/category/date filters narrow the list. Then go to `/categories` and confirm deleting a category that now has a transaction shows the blocked-delete error from the Categories plan.
+Run `npm run dev`, visit `/es/transactions`. Create an expense and an income transaction in different currencies, confirm they list correctly, edit one, delete one, confirm the type/category/date filters narrow the list. Switch to `/en/transactions` and confirm full English rendering, then toggle dark mode and confirm legibility. Then go to `/es/categories` and confirm deleting a category that now has a transaction shows the blocked-delete error from the Categories plan, translated.
 
-- [ ] **Step 9: Commit**
+- [ ] **Step 10: Commit**
 
 ```bash
 git add -A

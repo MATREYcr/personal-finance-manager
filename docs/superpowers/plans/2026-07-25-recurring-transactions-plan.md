@@ -6,7 +6,7 @@
 
 **Architecture:** `src/features/recurring-transactions/` holds queries.ts, actions.ts, generate.ts (the cron's pure-ish logic), hooks/, components/.
 
-**Tech Stack:** Next.js 15, Prisma, Zod, TanStack Query, react-hook-form, shadcn/ui, Vitest, Vercel Cron.
+**Tech Stack:** Next.js 15, Prisma, Zod, TanStack Query, react-hook-form, shadcn/ui, next-intl, Vitest, Vercel Cron.
 
 **Branch:** `feature/recurring-transactions`, created from `develop` **after** `feature/transactions` is merged. PR target: `develop`.
 
@@ -18,15 +18,17 @@
 - Editing a `RecurringTransaction` must never touch already-generated `Transaction` rows, and must never touch `nextRunDate` (only the generation cron advances that field).
 - The generation cron must invalidate the `'transactions'` and `'recurring-transactions'` cache tags itself (it writes via `db` directly, bypassing `actions.ts`, so the `revalidateTag` calls that `actions.ts` would normally make must happen in the cron route instead).
 - Per-rule generation (create `Transaction` + advance `nextRunDate`) must be atomic (`db.$transaction`) so a retry after partial failure never double-creates or skips.
+- All routes live under `src/app/[locale]/...`. All user-facing text uses `next-intl` (`useTranslations` in Client Components) under this feature's own `RecurringTransactions` namespace — no hardcoded strings. All styling uses shadcn's theme-aware Tailwind tokens (never hardcoded colors).
 
 ## Prerequisites (from Foundation + Categories + Transactions, already merged)
 
 - `db`, `requireSession()`, `RecurringTransaction` model, `TransactionType`/`RecurrenceFrequency` enums.
 - `queryKeys` at `@/lib/query/keys` (this plan adds a `recurringTransactions` key).
-- `useCategories()` hook and `Category` type from the Categories feature.
-- `src/app/(dashboard)/layout.tsx` nav already links to `/recurring-transactions`.
+- `useCategories()` hook and `Category` type from the Categories feature; the `Categories` namespace already provides `typeExpense`/`typeIncome` labels.
+- `src/app/[locale]/(dashboard)/layout.tsx` nav already links to `/recurring-transactions`.
 - `.env.example` already documents `CRON_SECRET` (added in Foundation) — set a real value in `.env.local` before testing the cron endpoint in this plan.
 - `vercel.json` does not exist yet in this codebase unless a prior plan created it — if absent, create it in Task 3 of this plan; if present (e.g. from a differently-ordered execution), append to its `crons` array instead of overwriting it.
+- `messages/es.json` / `messages/en.json` already contain `Common`, `Auth`, `Categories`, `Transactions` — this plan adds a new top-level `RecurringTransactions` namespace.
 
 ---
 
@@ -44,7 +46,7 @@ src/features/recurring-transactions/
 └── components/{RecurringTransactionFormDialog.tsx,RecurringTransactionList.tsx}
 src/app/api/recurring-transactions/route.ts
 src/app/api/cron/recurring-transactions/route.ts
-src/app/(dashboard)/recurring-transactions/page.tsx
+src/app/[locale]/(dashboard)/recurring-transactions/page.tsx
 ```
 
 ---
@@ -182,6 +184,10 @@ async function assertOwnsCategory(userId: string, categoryId: string) {
   if (!category) throw new Error('That category does not exist for this user')
 }
 
+// Note: the category-ownership error below is a defensive/should-never-happen
+// case (the UI only ever offers the current user's own categories in the
+// select), not a user-facing validation message, so it is intentionally not
+// translated — same rationale as the Transactions plan's identical check.
 export async function createRecurringTransaction(input: z.infer<typeof recurringInputSchema>) {
   const session = await requireSession()
   const { categoryId, type, amount, currency, frequency, startDate, note } = recurringInputSchema.parse(input)
@@ -264,7 +270,8 @@ git commit -m "feat(recurring): add CRUD queries/actions for recurring transacti
 - Create: `src/features/recurring-transactions/hooks/useRecurringTransactionMutations.ts`
 - Create: `src/features/recurring-transactions/components/RecurringTransactionFormDialog.tsx`
 - Create: `src/features/recurring-transactions/components/RecurringTransactionList.tsx`
-- Create: `src/app/(dashboard)/recurring-transactions/page.tsx`
+- Create: `src/app/[locale]/(dashboard)/recurring-transactions/page.tsx`
+- Modify: `messages/es.json`, `messages/en.json` (add the `RecurringTransactions` namespace)
 
 **Interfaces:**
 - Consumes: everything from Task 1, plus `useCategories` (Categories plan).
@@ -335,7 +342,61 @@ export function useRecurringTransactionMutations() {
 }
 ```
 
-- [ ] **Step 4: Form dialog**
+- [ ] **Step 4: Add the RecurringTransactions message keys**
+
+```json
+// messages/es.json — add a new top-level "RecurringTransactions" namespace
+  "RecurringTransactions": {
+    "title": "Transacciones recurrentes",
+    "new": "Nueva transacción recurrente",
+    "edit": "Editar transacción recurrente",
+    "loading": "Cargando transacciones recurrentes…",
+    "frequency": "Frecuencia",
+    "frequencyWeekly": "Semanal",
+    "frequencyMonthly": "Mensual",
+    "frequencyYearly": "Anual",
+    "startDate": "Fecha de inicio",
+    "columnCategory": "Categoría",
+    "columnType": "Tipo",
+    "columnAmount": "Monto",
+    "columnFrequency": "Frecuencia",
+    "columnNextRun": "Próxima fecha",
+    "columnStatus": "Estado",
+    "columnActions": "Acciones",
+    "statusActive": "Activa",
+    "statusPaused": "Pausada",
+    "pause": "Pausar",
+    "resume": "Reanudar"
+  }
+```
+
+```json
+// messages/en.json — add a new top-level "RecurringTransactions" namespace
+  "RecurringTransactions": {
+    "title": "Recurring transactions",
+    "new": "New recurring transaction",
+    "edit": "Edit recurring transaction",
+    "loading": "Loading recurring transactions…",
+    "frequency": "Frequency",
+    "frequencyWeekly": "Weekly",
+    "frequencyMonthly": "Monthly",
+    "frequencyYearly": "Yearly",
+    "startDate": "Start date",
+    "columnCategory": "Category",
+    "columnType": "Type",
+    "columnAmount": "Amount",
+    "columnFrequency": "Frequency",
+    "columnNextRun": "Next run",
+    "columnStatus": "Status",
+    "columnActions": "Actions",
+    "statusActive": "Active",
+    "statusPaused": "Paused",
+    "pause": "Pause",
+    "resume": "Resume"
+  }
+```
+
+- [ ] **Step 5: Form dialog**
 
 ```typescript
 // src/features/recurring-transactions/components/RecurringTransactionFormDialog.tsx
@@ -343,6 +404,7 @@ export function useRecurringTransactionMutations() {
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
+import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog'
@@ -370,6 +432,10 @@ export function RecurringTransactionFormDialog({
   rule?: RecurringTransactionWithCategory
   trigger: React.ReactNode
 }) {
+  const t = useTranslations('RecurringTransactions')
+  const tTransactions = useTranslations('Transactions')
+  const tCategories = useTranslations('Categories')
+  const tCommon = useTranslations('Common.actions')
   const { data: categories } = useCategories()
   const { create, update } = useRecurringTransactionMutations()
   const form = useForm<FormValues>({
@@ -398,38 +464,38 @@ export function RecurringTransactionFormDialog({
       <DialogTrigger asChild>{trigger}</DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>{rule ? 'Edit recurring transaction' : 'New recurring transaction'}</DialogTitle>
+          <DialogTitle>{rule ? t('edit') : t('new')}</DialogTitle>
         </DialogHeader>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
           <Select defaultValue={form.getValues('type')} onValueChange={(v) => form.setValue('type', v as 'EXPENSE' | 'INCOME')}>
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="EXPENSE">Expense</SelectItem>
-              <SelectItem value="INCOME">Income</SelectItem>
+              <SelectItem value="EXPENSE">{tCategories('typeExpense')}</SelectItem>
+              <SelectItem value="INCOME">{tCategories('typeIncome')}</SelectItem>
             </SelectContent>
           </Select>
           <Select defaultValue={form.getValues('categoryId')} onValueChange={(v) => form.setValue('categoryId', v)}>
-            <SelectTrigger><SelectValue placeholder="Category" /></SelectTrigger>
+            <SelectTrigger><SelectValue placeholder={tTransactions('categoryPlaceholder')} /></SelectTrigger>
             <SelectContent>
               {(categories as Category[] | undefined)?.map((c) => (
                 <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
               ))}
             </SelectContent>
           </Select>
-          <Input type="number" step="0.01" placeholder="Amount" {...form.register('amount')} />
-          <Input placeholder="Currency (e.g. USD)" maxLength={3} {...form.register('currency')} />
+          <Input type="number" step="0.01" placeholder={tTransactions('amount')} {...form.register('amount')} />
+          <Input placeholder={tTransactions('currency')} maxLength={3} {...form.register('currency')} />
           <Select defaultValue={form.getValues('frequency')} onValueChange={(v) => form.setValue('frequency', v as 'WEEKLY' | 'MONTHLY' | 'YEARLY')}>
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="WEEKLY">Weekly</SelectItem>
-              <SelectItem value="MONTHLY">Monthly</SelectItem>
-              <SelectItem value="YEARLY">Yearly</SelectItem>
+              <SelectItem value="WEEKLY">{t('frequencyWeekly')}</SelectItem>
+              <SelectItem value="MONTHLY">{t('frequencyMonthly')}</SelectItem>
+              <SelectItem value="YEARLY">{t('frequencyYearly')}</SelectItem>
             </SelectContent>
           </Select>
-          {!rule && <Input type="date" {...form.register('startDate')} />}
-          <Input placeholder="Note (optional)" {...form.register('note')} />
+          {!rule && <Input type="date" placeholder={t('startDate')} {...form.register('startDate')} />}
+          <Input placeholder={tTransactions('note')} {...form.register('note')} />
           <DialogFooter>
-            <Button type="submit" disabled={create.isPending || update.isPending}>Save</Button>
+            <Button type="submit" disabled={create.isPending || update.isPending}>{tCommon('save')}</Button>
           </DialogFooter>
         </form>
       </DialogContent>
@@ -438,11 +504,12 @@ export function RecurringTransactionFormDialog({
 }
 ```
 
-- [ ] **Step 5: List**
+- [ ] **Step 6: List**
 
 ```typescript
 // src/features/recurring-transactions/components/RecurringTransactionList.tsx
 'use client'
+import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
@@ -451,49 +518,54 @@ import { useRecurringTransactionMutations } from '../hooks/useRecurringTransacti
 import { RecurringTransactionFormDialog } from './RecurringTransactionFormDialog'
 import type { RecurringTransactionWithCategory } from '../types'
 
+const frequencyKey = { WEEKLY: 'frequencyWeekly', MONTHLY: 'frequencyMonthly', YEARLY: 'frequencyYearly' } as const
+
 export function RecurringTransactionList() {
+  const t = useTranslations('RecurringTransactions')
+  const tCategories = useTranslations('Categories')
+  const tCommon = useTranslations('Common.actions')
   const { data: rules, isLoading } = useRecurringTransactions()
   const { toggleActive, remove } = useRecurringTransactionMutations()
 
-  if (isLoading) return <p>Loading recurring transactions…</p>
+  if (isLoading) return <p>{t('loading')}</p>
 
   return (
     <div className="space-y-4">
       <div className="flex justify-end">
-        <RecurringTransactionFormDialog trigger={<Button>New recurring transaction</Button>} />
+        <RecurringTransactionFormDialog trigger={<Button>{t('new')}</Button>} />
       </div>
       <div className="w-full overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Category</TableHead>
-              <TableHead>Type</TableHead>
-              <TableHead className="text-right">Amount</TableHead>
-              <TableHead>Frequency</TableHead>
-              <TableHead>Next run</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
+              <TableHead>{t('columnCategory')}</TableHead>
+              <TableHead>{t('columnType')}</TableHead>
+              <TableHead className="text-right">{t('columnAmount')}</TableHead>
+              <TableHead>{t('columnFrequency')}</TableHead>
+              <TableHead>{t('columnNextRun')}</TableHead>
+              <TableHead>{t('columnStatus')}</TableHead>
+              <TableHead className="text-right">{t('columnActions')}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {(rules as RecurringTransactionWithCategory[] | undefined)?.map((rule) => (
               <TableRow key={rule.id}>
                 <TableCell>{rule.category.name}</TableCell>
-                <TableCell>{rule.type}</TableCell>
+                <TableCell>{rule.type === 'EXPENSE' ? tCategories('typeExpense') : tCategories('typeIncome')}</TableCell>
                 <TableCell className="text-right">{Number(rule.amount).toFixed(2)} {rule.currency}</TableCell>
-                <TableCell>{rule.frequency}</TableCell>
+                <TableCell>{t(frequencyKey[rule.frequency])}</TableCell>
                 <TableCell>{new Date(rule.nextRunDate).toLocaleDateString()}</TableCell>
-                <TableCell><Badge variant={rule.active ? 'default' : 'secondary'}>{rule.active ? 'Active' : 'Paused'}</Badge></TableCell>
+                <TableCell><Badge variant={rule.active ? 'default' : 'secondary'}>{rule.active ? t('statusActive') : t('statusPaused')}</Badge></TableCell>
                 <TableCell className="text-right space-x-2">
-                  <RecurringTransactionFormDialog rule={rule} trigger={<Button variant="outline" size="sm">Edit</Button>} />
+                  <RecurringTransactionFormDialog rule={rule} trigger={<Button variant="outline" size="sm">{tCommon('edit')}</Button>} />
                   <Button
                     variant="outline"
                     size="sm"
                     onClick={() => toggleActive.mutate({ id: rule.id, active: !rule.active })}
                   >
-                    {rule.active ? 'Pause' : 'Resume'}
+                    {rule.active ? t('pause') : t('resume')}
                   </Button>
-                  <Button variant="destructive" size="sm" onClick={() => remove.mutate(rule.id)}>Delete</Button>
+                  <Button variant="destructive" size="sm" onClick={() => remove.mutate(rule.id)}>{tCommon('delete')}</Button>
                 </TableCell>
               </TableRow>
             ))}
@@ -505,27 +577,29 @@ export function RecurringTransactionList() {
 }
 ```
 
-- [ ] **Step 6: Page**
+- [ ] **Step 7: Page**
 
 ```typescript
-// src/app/(dashboard)/recurring-transactions/page.tsx
+// src/app/[locale]/(dashboard)/recurring-transactions/page.tsx
+import { getTranslations } from 'next-intl/server'
 import { RecurringTransactionList } from '@/features/recurring-transactions/components/RecurringTransactionList'
 
-export default function RecurringTransactionsPage() {
+export default async function RecurringTransactionsPage() {
+  const t = await getTranslations('RecurringTransactions')
   return (
     <div className="p-4 md:p-6">
-      <h1 className="text-2xl font-semibold mb-4">Recurring transactions</h1>
+      <h1 className="text-2xl font-semibold mb-4">{t('title')}</h1>
       <RecurringTransactionList />
     </div>
   )
 }
 ```
 
-- [ ] **Step 7: Manual verification**
+- [ ] **Step 8: Manual verification**
 
-Run `npm run dev`, visit `/recurring-transactions`, create a monthly "Salary" rule dated today, confirm it lists with the correct next-run date, pause/resume it, edit it, delete it.
+Run `npm run dev`, visit `/es/recurring-transactions`, create a monthly "Salary" rule dated today, confirm it lists with the correct next-run date and translated frequency/status labels, pause/resume it, edit it, delete it. Switch to `/en/recurring-transactions` and confirm full English rendering, then toggle dark mode and confirm the status badge remains legible in both themes.
 
-- [ ] **Step 8: Commit**
+- [ ] **Step 9: Commit**
 
 ```bash
 git add -A
@@ -749,7 +823,7 @@ Create a MONTHLY recurring rule with `startDate` set to today or earlier (via th
 ```bash
 curl -H "Authorization: Bearer $CRON_SECRET" http://localhost:3000/api/cron/recurring-transactions
 ```
-Expected: `{"generated": 1}`. Confirm in `/transactions` that a new transaction appeared, and in `/recurring-transactions` that `nextRunDate` advanced by one month. Run the same curl again immediately — expect `{"generated": 0}`.
+Expected: `{"generated": 1}`. Confirm in `/es/transactions` that a new transaction appeared, and in `/es/recurring-transactions` that `nextRunDate` advanced by one month. Run the same curl again immediately — expect `{"generated": 0}`.
 
 - [ ] **Step 8: Commit**
 

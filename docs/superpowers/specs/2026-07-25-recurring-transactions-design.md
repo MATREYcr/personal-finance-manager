@@ -14,6 +14,9 @@ daily cron job materializes each due rule into a real `Transaction` row.
 field set (category, type, amount, currency, note) plus two new fields
 (frequency, start date). The generation cron creates real `Transaction` rows
 directly, matching the exact shape Transactions' `queries.ts` already reads.
+All UI text goes through this feature's own `RecurringTransactions`
+namespace in `messages/es.json` / `messages/en.json`; all styling uses
+theme-aware Tailwind tokens. Routes live under `src/app/[locale]/...`.
 
 ## Data model
 

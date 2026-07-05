@@ -6,7 +6,7 @@
 
 **Architecture:** `src/features/categories/` holds queries.ts (cached reads), actions.ts (Server Action writes), a seeding module wired into Better Auth's signup hook, hooks/ + components/ for the client UI.
 
-**Tech Stack:** Next.js 15, Prisma, Zod, TanStack Query, react-hook-form, shadcn/ui, Vitest.
+**Tech Stack:** Next.js 15, Prisma, Zod, TanStack Query, react-hook-form, shadcn/ui, next-intl, Vitest.
 
 **Branch:** `feature/categories`, created from `develop` **after** `feature/foundation` is merged. PR target: `develop`.
 
@@ -16,6 +16,7 @@
 - Every Server Action validates input with Zod and scopes by the authenticated `userId` — never trust a client-supplied user id.
 - `queries.ts` uses `'use cache'` + `cacheTag('categories')`; `actions.ts` mutations call `revalidateTag('categories')` after a successful write.
 - Category deletion is blocked (friendly error) while any `Transaction` or `RecurringTransaction` references it — this plan can only test the empty-reference case for transactions/recurring counts (those tables have no real feature yet), but the guard logic and its test must be written now since Categories ships before Transactions.
+- All routes live under `src/app/[locale]/...`. All user-facing text uses `next-intl` (`useTranslations` in Client Components, `getTranslations` in Server Actions/Components) under this feature's own `Categories` namespace — no hardcoded strings. All styling uses shadcn's theme-aware Tailwind tokens (never hardcoded colors) so it works in both light and dark mode.
 
 ## Prerequisites (from Foundation, already merged)
 
@@ -23,9 +24,10 @@
 - `requireSession()` at `@/lib/auth/session`.
 - `Category` model in `prisma/schema.prisma` (via `@prisma/client`).
 - `queryKeys` at `@/lib/query/keys` (this plan adds a `categories` key to it).
-- `<QueryProvider>` already wired in `src/app/layout.tsx`.
+- `<QueryProvider>`, `<ThemeProvider>`, and `<NextIntlClientProvider>` already wired in `src/app/[locale]/layout.tsx`.
 - shadcn components already installed: button, input, label, card, dialog, form, table, select, tabs, badge.
-- `src/app/(dashboard)/layout.tsx` nav already links to `/categories`.
+- `src/app/[locale]/(dashboard)/layout.tsx` nav already links to `/categories` and reads `Common.nav`/`Common.actions` keys from the message catalogs.
+- `messages/es.json` / `messages/en.json` already contain `Common` and `Auth` namespaces — this plan adds a new top-level `Categories` namespace.
 
 ---
 
@@ -43,7 +45,7 @@ src/features/categories/
 ├── hooks/{useCategories.ts,useCategoryMutations.ts}
 └── components/{CategoryList.tsx,CategoryFormDialog.tsx}
 src/app/api/categories/route.ts
-src/app/(dashboard)/categories/page.tsx
+src/app/[locale]/(dashboard)/categories/page.tsx
 ```
 
 ---
@@ -59,6 +61,8 @@ src/app/(dashboard)/categories/page.tsx
 **Interfaces:**
 - Consumes: `db` from `@/lib/db`, `PrismaClient`/`TransactionType` from `@prisma/client`.
 - Produces: `DEFAULT_CATEGORIES`, `seedDefaultCategories(db, userId)` — wired into the Better Auth signup hook, not otherwise exported for use.
+
+The default category *names* are stored once, in English, as stable identifiers — not translated per user. (A category named "Market" is the user's own editable data from that point on, same as any category they'd create by hand; it is not re-translated if they switch the UI language. This mirrors how seeded data works in any i18n app: seed data is a starting point, not living UI copy.)
 
 - [ ] **Step 1: Write the failing test**
 
@@ -166,6 +170,7 @@ git commit -m "feat(categories): seed default categories for every new user"
 - Create: `src/features/categories/actions.ts`
 - Create: `src/features/categories/actions.test.ts`
 - Modify: `src/lib/query/keys.ts` (add the `categories` key)
+- Modify: `messages/es.json`, `messages/en.json` (add the `Categories` namespace's `deleteError` key, used by the Server Action's thrown error message)
 
 **Interfaces:**
 - Consumes: `requireSession` from `@/lib/auth/session`, `db` from `@/lib/db`, `Category` type from `@prisma/client`.
@@ -200,6 +205,9 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 const mockRequireSession = vi.fn()
 vi.mock('@/lib/auth/session', () => ({ requireSession: () => mockRequireSession() }))
 
+const mockGetTranslations = vi.fn()
+vi.mock('next-intl/server', () => ({ getTranslations: () => mockGetTranslations() }))
+
 const mockDb = {
   category: { create: vi.fn(), update: vi.fn(), delete: vi.fn() },
   transaction: { count: vi.fn() },
@@ -214,13 +222,14 @@ describe('deleteCategory', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockRequireSession.mockResolvedValue({ user: { id: 'user-1' } })
+    mockGetTranslations.mockResolvedValue((key: string) => key)
   })
 
   it('throws and does not delete when transactions still reference the category', async () => {
     mockDb.transaction.count.mockResolvedValue(2)
     mockDb.recurringTransaction.count.mockResolvedValue(0)
 
-    await expect(deleteCategory('cat-1')).rejects.toThrow(/still has transactions/i)
+    await expect(deleteCategory('cat-1')).rejects.toThrow('deleteError')
     expect(mockDb.category.delete).not.toHaveBeenCalled()
   })
 
@@ -259,13 +268,30 @@ export async function getCategories(userId: string) {
 }
 ```
 
-- [ ] **Step 6: Write actions.ts**
+- [ ] **Step 6: Add the deleteError message key**
+
+```json
+// messages/es.json — add a new top-level "Categories" namespace
+  "Categories": {
+    "deleteError": "No se puede eliminar una categoría que todavía tiene transacciones. Reasigná o eliminá esas transacciones primero."
+  }
+```
+
+```json
+// messages/en.json — add a new top-level "Categories" namespace
+  "Categories": {
+    "deleteError": "Cannot delete a category that still has transactions. Reassign or delete those transactions first."
+  }
+```
+
+- [ ] **Step 7: Write actions.ts**
 
 ```typescript
 // src/features/categories/actions.ts
 'use server'
 import { z } from 'zod'
 import { revalidateTag } from 'next/cache'
+import { getTranslations } from 'next-intl/server'
 import { db } from '@/lib/db'
 import { requireSession } from '@/lib/auth/session'
 
@@ -312,9 +338,8 @@ export async function deleteCategory(categoryId: string) {
   ])
 
   if (transactionCount > 0 || recurringCount > 0) {
-    throw new Error(
-      'Cannot delete a category that still has transactions. Reassign or delete those transactions first.'
-    )
+    const t = await getTranslations('Categories')
+    throw new Error(t('deleteError'))
   }
 
   await db.category.delete({ where: { id: categoryId, userId: session.user.id } })
@@ -322,12 +347,12 @@ export async function deleteCategory(categoryId: string) {
 }
 ```
 
-- [ ] **Step 7: Run test to verify it passes**
+- [ ] **Step 8: Run test to verify it passes**
 
 Run: `npm test -- actions.test.ts`
 Expected: PASS (2 tests).
 
-- [ ] **Step 8: Commit**
+- [ ] **Step 9: Commit**
 
 ```bash
 git add -A
@@ -344,7 +369,8 @@ git commit -m "feat(categories): add CRUD queries/actions with delete-guard"
 - Create: `src/features/categories/components/CategoryList.tsx`
 - Create: `src/features/categories/components/CategoryFormDialog.tsx`
 - Create: `src/app/api/categories/route.ts`
-- Create: `src/app/(dashboard)/categories/page.tsx`
+- Create: `src/app/[locale]/(dashboard)/categories/page.tsx`
+- Modify: `messages/es.json`, `messages/en.json` (add the rest of the `Categories` namespace)
 
 **Interfaces:**
 - Consumes: `getCategories`, `createCategory`, `updateCategory`, `deleteCategory` (Task 2), `queryKeys.categories` (Task 2), `requireSession` (Foundation).
@@ -416,7 +442,45 @@ export function useCategoryMutations() {
 }
 ```
 
-- [ ] **Step 5: Form dialog component**
+- [ ] **Step 5: Add the remaining Categories message keys**
+
+```json
+// messages/es.json — extend the "Categories" namespace from Task 2
+  "Categories": {
+    "deleteError": "No se puede eliminar una categoría que todavía tiene transacciones. Reasigná o eliminá esas transacciones primero.",
+    "title": "Categorías",
+    "newCategory": "Nueva categoría",
+    "editCategory": "Editar categoría",
+    "name": "Nombre",
+    "type": "Tipo",
+    "typeExpense": "Gasto",
+    "typeIncome": "Ingreso",
+    "loading": "Cargando categorías…",
+    "columnName": "Nombre",
+    "columnType": "Tipo",
+    "columnActions": "Acciones"
+  }
+```
+
+```json
+// messages/en.json — extend the "Categories" namespace from Task 2
+  "Categories": {
+    "deleteError": "Cannot delete a category that still has transactions. Reassign or delete those transactions first.",
+    "title": "Categories",
+    "newCategory": "New category",
+    "editCategory": "Edit category",
+    "name": "Name",
+    "type": "Type",
+    "typeExpense": "Expense",
+    "typeIncome": "Income",
+    "loading": "Loading categories…",
+    "columnName": "Name",
+    "columnType": "Type",
+    "columnActions": "Actions"
+  }
+```
+
+- [ ] **Step 6: Form dialog component**
 
 ```typescript
 // src/features/categories/components/CategoryFormDialog.tsx
@@ -424,6 +488,7 @@ export function useCategoryMutations() {
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
+import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -442,6 +507,8 @@ const schema = z.object({
 type FormValues = z.infer<typeof schema>
 
 export function CategoryFormDialog({ category, trigger }: { category?: Category; trigger: React.ReactNode }) {
+  const t = useTranslations('Categories')
+  const tCommon = useTranslations('Common.actions')
   const { create, update } = useCategoryMutations()
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -461,23 +528,23 @@ export function CategoryFormDialog({ category, trigger }: { category?: Category;
       <DialogTrigger asChild>{trigger}</DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>{category ? 'Edit category' : 'New category'}</DialogTitle>
+          <DialogTitle>{category ? t('editCategory') : t('newCategory')}</DialogTitle>
         </DialogHeader>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-          <Input placeholder="Name" {...form.register('name')} />
+          <Input placeholder={t('name')} {...form.register('name')} />
           <Select
             defaultValue={form.getValues('type')}
             onValueChange={(v) => form.setValue('type', v as 'EXPENSE' | 'INCOME')}
           >
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="EXPENSE">Expense</SelectItem>
-              <SelectItem value="INCOME">Income</SelectItem>
+              <SelectItem value="EXPENSE">{t('typeExpense')}</SelectItem>
+              <SelectItem value="INCOME">{t('typeIncome')}</SelectItem>
             </SelectContent>
           </Select>
           <DialogFooter>
             <Button type="submit" disabled={create.isPending || update.isPending}>
-              Save
+              {tCommon('save')}
             </Button>
           </DialogFooter>
         </form>
@@ -487,11 +554,12 @@ export function CategoryFormDialog({ category, trigger }: { category?: Category;
 }
 ```
 
-- [ ] **Step 6: List component**
+- [ ] **Step 7: List component**
 
 ```typescript
 // src/features/categories/components/CategoryList.tsx
 'use client'
+import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { useCategories } from '../hooks/useCategories'
@@ -500,39 +568,41 @@ import { CategoryFormDialog } from './CategoryFormDialog'
 import type { Category } from '../types'
 
 export function CategoryList() {
+  const t = useTranslations('Categories')
+  const tCommon = useTranslations('Common.actions')
   const { data: categories, isLoading } = useCategories()
   const { remove } = useCategoryMutations()
 
-  if (isLoading) return <p>Loading categories…</p>
+  if (isLoading) return <p>{t('loading')}</p>
 
   return (
     <div className="space-y-4">
       <div className="flex justify-end">
-        <CategoryFormDialog trigger={<Button>New category</Button>} />
+        <CategoryFormDialog trigger={<Button>{t('newCategory')}</Button>} />
       </div>
       <div className="w-full overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Name</TableHead>
-              <TableHead>Type</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
+              <TableHead>{t('columnName')}</TableHead>
+              <TableHead>{t('columnType')}</TableHead>
+              <TableHead className="text-right">{t('columnActions')}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {(categories as Category[] | undefined)?.map((category) => (
               <TableRow key={category.id}>
                 <TableCell>{category.name}</TableCell>
-                <TableCell>{category.type}</TableCell>
+                <TableCell>{category.type === 'EXPENSE' ? t('typeExpense') : t('typeIncome')}</TableCell>
                 <TableCell className="text-right space-x-2">
-                  <CategoryFormDialog category={category} trigger={<Button variant="outline" size="sm">Edit</Button>} />
+                  <CategoryFormDialog category={category} trigger={<Button variant="outline" size="sm">{tCommon('edit')}</Button>} />
                   <Button
                     variant="destructive"
                     size="sm"
                     onClick={() => remove.mutate(category.id)}
                     disabled={remove.isPending}
                   >
-                    Delete
+                    {tCommon('delete')}
                   </Button>
                 </TableCell>
               </TableRow>
@@ -548,27 +618,29 @@ export function CategoryList() {
 }
 ```
 
-- [ ] **Step 7: Page**
+- [ ] **Step 8: Page**
 
 ```typescript
-// src/app/(dashboard)/categories/page.tsx
+// src/app/[locale]/(dashboard)/categories/page.tsx
+import { getTranslations } from 'next-intl/server'
 import { CategoryList } from '@/features/categories/components/CategoryList'
 
-export default function CategoriesPage() {
+export default async function CategoriesPage() {
+  const t = await getTranslations('Categories')
   return (
     <div className="p-4 md:p-6">
-      <h1 className="text-2xl font-semibold mb-4">Categories</h1>
+      <h1 className="text-2xl font-semibold mb-4">{t('title')}</h1>
       <CategoryList />
     </div>
   )
 }
 ```
 
-- [ ] **Step 8: Manual verification**
+- [ ] **Step 9: Manual verification**
 
-Run `npm run dev`, sign in, visit `/categories`. Confirm: the 9 seeded categories render; creating a new category adds a row; editing changes it; deleting a category with no transactions succeeds (the delete-blocked error path can only be fully exercised once the Transactions plan lands, but the code path and its unit test already cover it).
+Run `npm run dev`, sign in, visit `/es/categories`. Confirm: the 9 seeded categories render with translated type labels; creating a new category adds a row; editing changes it; deleting a category with no transactions succeeds. Switch to `/en/categories` and confirm the page renders fully in English. Toggle dark mode and confirm the table/dialog remain legible. (The delete-blocked error path can only be fully exercised once the Transactions plan lands, but the code path and its unit test already cover it.)
 
-- [ ] **Step 9: Commit**
+- [ ] **Step 10: Commit**
 
 ```bash
 git add -A

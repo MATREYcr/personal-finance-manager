@@ -6,7 +6,7 @@
 
 **Architecture:** `src/lib/currency/` holds the pure conversion helper. `src/features/exchange-rates/` holds the FX fetch logic. `src/features/dashboard/` splits pure logic (period ranges, summary math — fully unit-tested) from a thin `'use cache'` query wrapper that talks to Prisma. `src/features/settings/` holds the base-currency action + form.
 
-**Tech Stack:** Next.js 15, Prisma, Zod, Vitest, Vercel Cron.
+**Tech Stack:** Next.js 15, Prisma, Zod, next-intl, next-themes, Vitest, Vercel Cron.
 
 **Branch:** `feature/currency-fx-dashboard`, created from `develop` **after** `feature/foundation` and `feature/transactions` are merged. (Does not require `feature/recurring-transactions` to be merged first — see the spec's dependency note — but if executing v1 subsystems strictly in sequence, it will be merged by the time this branch starts anyway.) PR target: `develop`. This is the last v1 subsystem — its final task verifies and closes out v1.
 
@@ -17,14 +17,16 @@
 - The dashboard's cached query function must **not** take a `PrismaClient` (or any object) as a parameter — `'use cache'` requires serializable arguments, and a Prisma client instance is not serializable. Pure logic (period ranges, summary math) lives in separate, dependency-free modules that take plain data and are the only things unit-tested; the cached query wrapper itself imports `db` directly (same convention as every other `queries.ts` in this project) and is not unit-tested — it's covered by this plan's manual walkthrough instead.
 - The FX refresh cron and the recurring-transaction generation cron (from the Recurring Transactions plan) both write data outside of `actions.ts` — each must call the relevant `revalidateTag` itself. This plan's FX cron must call `revalidateTag('exchange-rates')` on a successful refresh.
 - `vercel.json` may already exist (created by the Recurring Transactions plan) — if so, append the FX cron entry to its existing `crons` array rather than overwriting the file.
+- All routes live under `src/app/[locale]/...`. All user-facing text uses `next-intl` (`useTranslations` in Client Components, `getTranslations` in Server Components) under this feature's own `Dashboard` and `Settings` namespaces — no hardcoded strings. All navigation (`useRouter`, `redirect`) imports from `@/i18n/navigation`, never `next/navigation`. All styling uses shadcn's theme-aware Tailwind tokens; where no semantic token exists (e.g. a positive/savings color), use an explicit `dark:` variant so it stays legible in both themes rather than hardcoding a single-theme color.
 
 ## Prerequisites (from Foundation + Transactions, already merged)
 
 - `db`, `requireSession()`, `ExchangeRate` model, `User.baseCurrency` field.
 - `getTransactions`-equivalent data already in the `Transaction` table (this plan queries `db.transaction` directly for aggregation, not through the Transactions feature's `queries.ts`, since it needs a different shape — see Task 4).
-- `useSession()` at `@/lib/auth/client`.
-- `src/app/(dashboard)/layout.tsx` nav already links to `/dashboard` and `/settings`.
+- `useSession()` at `@/lib/auth/client`; `useRouter`/`redirect` at `@/i18n/navigation`.
+- `src/app/[locale]/(dashboard)/layout.tsx` nav already links to `/dashboard` and `/settings`.
 - `.env.example` already documents `CRON_SECRET`.
+- `messages/es.json` / `messages/en.json` already contain `Common`, `Auth`, `Categories`, `Transactions`, `RecurringTransactions` — this plan adds `Dashboard` and `Settings` namespaces.
 
 ---
 
@@ -42,12 +44,12 @@ src/features/dashboard/
 ├── compute-summary.test.ts
 ├── queries.ts
 └── components/{PeriodSwitcher.tsx,SummaryCards.tsx}
-src/app/(dashboard)/dashboard/page.tsx
+src/app/[locale]/(dashboard)/dashboard/page.tsx
 src/features/settings/
 ├── actions.ts
 ├── actions.test.ts
 └── components/BaseCurrencyForm.tsx
-src/app/(dashboard)/settings/page.tsx
+src/app/[locale]/(dashboard)/settings/page.tsx
 vercel.json (append to)
 README.md
 ```
@@ -314,7 +316,8 @@ git commit -m "feat(fx): add daily exchange rate refresh cron job"
 - Create: `src/features/settings/actions.ts`
 - Create: `src/features/settings/actions.test.ts`
 - Create: `src/features/settings/components/BaseCurrencyForm.tsx`
-- Create: `src/app/(dashboard)/settings/page.tsx`
+- Create: `src/app/[locale]/(dashboard)/settings/page.tsx`
+- Modify: `messages/es.json`, `messages/en.json` (add the `Settings` namespace)
 
 **Interfaces:**
 - Consumes: `requireSession`, `db`, `useSession`.
@@ -388,19 +391,40 @@ export async function updateBaseCurrency(currency: string) {
 Run: `npm test -- settings/actions.test.ts`
 Expected: PASS (2 tests).
 
-- [ ] **Step 5: Settings form**
+- [ ] **Step 5: Add the Settings message keys**
+
+```json
+// messages/es.json — add a new top-level "Settings" namespace
+  "Settings": {
+    "title": "Configuración",
+    "baseCurrency": "Moneda base"
+  }
+```
+
+```json
+// messages/en.json — add a new top-level "Settings" namespace
+  "Settings": {
+    "title": "Settings",
+    "baseCurrency": "Base currency"
+  }
+```
+
+- [ ] **Step 6: Settings form**
 
 ```typescript
 // src/features/settings/components/BaseCurrencyForm.tsx
 'use client'
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useTranslations } from 'next-intl'
+import { useRouter } from '@/i18n/navigation'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { useSession } from '@/lib/auth/client'
 import { updateBaseCurrency } from '../actions'
 
 export function BaseCurrencyForm() {
+  const t = useTranslations('Settings')
+  const tCommon = useTranslations('Common.actions')
   const { data: session } = useSession()
   const router = useRouter()
   const [currency, setCurrency] = useState((session?.user as { baseCurrency?: string })?.baseCurrency ?? 'USD')
@@ -416,35 +440,37 @@ export function BaseCurrencyForm() {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4 max-w-xs">
-      <label className="block text-sm font-medium">Base currency</label>
+      <label className="block text-sm font-medium">{t('baseCurrency')}</label>
       <Input value={currency} maxLength={3} onChange={(e) => setCurrency(e.target.value.toUpperCase())} />
-      <Button type="submit" disabled={saving}>Save</Button>
+      <Button type="submit" disabled={saving}>{tCommon('save')}</Button>
     </form>
   )
 }
 ```
 
-- [ ] **Step 6: Page**
+- [ ] **Step 7: Page**
 
 ```typescript
-// src/app/(dashboard)/settings/page.tsx
+// src/app/[locale]/(dashboard)/settings/page.tsx
+import { getTranslations } from 'next-intl/server'
 import { BaseCurrencyForm } from '@/features/settings/components/BaseCurrencyForm'
 
-export default function SettingsPage() {
+export default async function SettingsPage() {
+  const t = await getTranslations('Settings')
   return (
     <div className="p-4 md:p-6">
-      <h1 className="text-2xl font-semibold mb-4">Settings</h1>
+      <h1 className="text-2xl font-semibold mb-4">{t('title')}</h1>
       <BaseCurrencyForm />
     </div>
   )
 }
 ```
 
-- [ ] **Step 7: Manual verification**
+- [ ] **Step 8: Manual verification**
 
-Visit `/settings`, change the base currency to `EUR`, save. (Full effect on the dashboard is verified in Task 4, once it exists.)
+Visit `/es/settings`, change the base currency to `EUR`, save. Switch to `/en/settings` and confirm the label/button are in English. (Full effect on the dashboard is verified in Task 5, once it exists.)
 
-- [ ] **Step 8: Commit**
+- [ ] **Step 9: Commit**
 
 ```bash
 git add -A
@@ -675,58 +701,96 @@ git commit -m "feat(dashboard): add period-aware, currency-converted summary que
 **Files:**
 - Create: `src/features/dashboard/components/PeriodSwitcher.tsx`
 - Create: `src/features/dashboard/components/SummaryCards.tsx`
-- Create: `src/app/(dashboard)/dashboard/page.tsx`
+- Create: `src/app/[locale]/(dashboard)/dashboard/page.tsx`
+- Modify: `messages/es.json`, `messages/en.json` (add the `Dashboard` namespace)
 
 **Interfaces:**
-- Consumes: `getDashboardSummary`/`Period` (Task 4), `auth`/`headers` (Foundation).
+- Consumes: `getDashboardSummary`/`Period` (Task 4), `auth`/`headers` (Foundation), `redirect` (`@/i18n/navigation`).
 - Produces: the `/dashboard` page.
 
-- [ ] **Step 1: Period switcher (URL-driven — no client state library needed)**
+- [ ] **Step 1: Add the Dashboard message keys**
+
+```json
+// messages/es.json — add a new top-level "Dashboard" namespace
+  "Dashboard": {
+    "week": "Semana",
+    "month": "Mes",
+    "year": "Año",
+    "income": "Ingresos",
+    "expense": "Gastos",
+    "savings": "Ahorro"
+  }
+```
+
+```json
+// messages/en.json — add a new top-level "Dashboard" namespace
+  "Dashboard": {
+    "week": "Week",
+    "month": "Month",
+    "year": "Year",
+    "income": "Income",
+    "expense": "Expense",
+    "savings": "Savings"
+  }
+```
+
+- [ ] **Step 2: Period switcher (URL-driven — no client state library needed)**
 
 ```typescript
 // src/features/dashboard/components/PeriodSwitcher.tsx
 'use client'
-import { useRouter, usePathname } from 'next/navigation'
+import { useTranslations } from 'next-intl'
+import { useRouter, usePathname } from '@/i18n/navigation'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import type { Period } from '../types'
 
 export function PeriodSwitcher({ period }: { period: Period }) {
+  const t = useTranslations('Dashboard')
   const router = useRouter()
   const pathname = usePathname()
 
   return (
     <Tabs value={period} onValueChange={(v) => router.push(`${pathname}?period=${v}`)}>
       <TabsList>
-        <TabsTrigger value="week">Week</TabsTrigger>
-        <TabsTrigger value="month">Month</TabsTrigger>
-        <TabsTrigger value="year">Year</TabsTrigger>
+        <TabsTrigger value="week">{t('week')}</TabsTrigger>
+        <TabsTrigger value="month">{t('month')}</TabsTrigger>
+        <TabsTrigger value="year">{t('year')}</TabsTrigger>
       </TabsList>
     </Tabs>
   )
 }
 ```
 
-- [ ] **Step 2: Summary cards**
+- [ ] **Step 3: Summary cards**
+
+Savings has no built-in shadcn semantic token for "positive" — `text-destructive` already covers the negative case in both themes, but the positive case needs an explicit light/dark pair rather than a single hardcoded color:
 
 ```typescript
 // src/features/dashboard/components/SummaryCards.tsx
+import { useTranslations } from 'next-intl'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import type { DashboardSummary } from '../types'
 
 export function SummaryCards({ summary, baseCurrency }: { summary: DashboardSummary; baseCurrency: string }) {
+  const t = useTranslations('Dashboard')
+
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
       <Card>
-        <CardHeader><CardTitle>Income</CardTitle></CardHeader>
+        <CardHeader><CardTitle>{t('income')}</CardTitle></CardHeader>
         <CardContent className="text-2xl font-semibold">{summary.income.toFixed(2)} {baseCurrency}</CardContent>
       </Card>
       <Card>
-        <CardHeader><CardTitle>Expense</CardTitle></CardHeader>
+        <CardHeader><CardTitle>{t('expense')}</CardTitle></CardHeader>
         <CardContent className="text-2xl font-semibold">{summary.expense.toFixed(2)} {baseCurrency}</CardContent>
       </Card>
       <Card>
-        <CardHeader><CardTitle>Savings</CardTitle></CardHeader>
-        <CardContent className={`text-2xl font-semibold ${summary.savings >= 0 ? 'text-green-600' : 'text-destructive'}`}>
+        <CardHeader><CardTitle>{t('savings')}</CardTitle></CardHeader>
+        <CardContent
+          className={`text-2xl font-semibold ${
+            summary.savings >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-destructive'
+          }`}
+        >
           {summary.savings.toFixed(2)} {baseCurrency}
         </CardContent>
       </Card>
@@ -735,25 +799,28 @@ export function SummaryCards({ summary, baseCurrency }: { summary: DashboardSumm
 }
 ```
 
-- [ ] **Step 3: Dashboard page (Server Component — no TanStack Query, per the "Server Components fetch directly" rule)**
+- [ ] **Step 4: Dashboard page (Server Component — no TanStack Query, per the "Server Components fetch directly" rule)**
 
 ```typescript
-// src/app/(dashboard)/dashboard/page.tsx
-import { redirect } from 'next/navigation'
+// src/app/[locale]/(dashboard)/dashboard/page.tsx
 import { headers } from 'next/headers'
 import { auth } from '@/lib/auth'
+import { redirect } from '@/i18n/navigation'
 import { getDashboardSummary } from '@/features/dashboard/queries'
 import { PeriodSwitcher } from '@/features/dashboard/components/PeriodSwitcher'
 import { SummaryCards } from '@/features/dashboard/components/SummaryCards'
 import type { Period } from '@/features/dashboard/types'
 
 export default async function DashboardPage({
+  params,
   searchParams,
 }: {
+  params: Promise<{ locale: string }>
   searchParams: Promise<{ period?: string }>
 }) {
+  const { locale } = await params
   const session = await auth.api.getSession({ headers: await headers() })
-  if (!session) redirect('/sign-in')
+  if (!session) redirect({ href: '/sign-in', locale })
 
   const { period: rawPeriod } = await searchParams
   const period: Period = rawPeriod === 'week' || rawPeriod === 'year' ? rawPeriod : 'month'
@@ -773,11 +840,11 @@ export default async function DashboardPage({
 }
 ```
 
-- [ ] **Step 4: Manual verification**
+- [ ] **Step 5: Manual verification**
 
-Run `npm run dev`. `/dashboard` shows Income/Expense/Savings for the current month. Switching period tabs updates the numbers. Add a transaction, revisit dashboard, confirm totals reflect it. Change base currency in `/settings`, confirm dashboard values and suffix update.
+Run `npm run dev`. `/es/dashboard` shows Income/Expense/Savings (translated) for the current month. Switching period tabs updates the numbers. Add a transaction, revisit dashboard, confirm totals reflect it. Change base currency in `/es/settings`, confirm dashboard values and suffix update. Switch to `/en/dashboard` and confirm full English rendering. Toggle dark mode and confirm the savings figure stays legible in both a positive and a negative state.
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 6: Commit**
 
 ```bash
 git add -A
@@ -802,7 +869,7 @@ Expected: all tests pass across every subsystem (categories, transactions, recur
 
 - [ ] **Step 2: Full manual walkthrough**
 
-With `npm run dev` running: sign up a fresh account → confirm 9 seeded categories → add a few income/expense transactions in USD and one other currency → create a monthly recurring salary rule (if Recurring Transactions is merged) → hit both cron endpoints manually with `curl` → confirm the dashboard's week/month/year totals and savings figure are correct and currency-converted → edit the base currency in Settings and confirm the dashboard updates → attempt to delete a category with transactions and confirm the friendly error.
+With `npm run dev` running: sign up a fresh account at `/es/sign-up` → confirm 9 seeded categories → add a few income/expense transactions in USD and one other currency → create a monthly recurring salary rule (if Recurring Transactions is merged) → hit both cron endpoints manually with `curl` → confirm the dashboard's week/month/year totals and savings figure are correct and currency-converted → edit the base currency in Settings and confirm the dashboard updates → attempt to delete a category with transactions and confirm the friendly error → switch to `/en/...` throughout and confirm every page renders fully in English → toggle dark mode and confirm every page (including the destructive/positive savings colors and status badges) stays legible.
 
 - [ ] **Step 3: Document setup in README**
 
@@ -810,7 +877,8 @@ With `npm run dev` running: sign up a fresh account → confirm 9 seeded categor
 # Personal Finance Manager
 
 Personal expense/income tracker with per-user categories, recurring
-transactions, and a multi-currency dashboard.
+transactions, and a multi-currency dashboard. Available in Spanish
+(default) and English, with light/dark mode.
 
 ## Setup
 
@@ -821,6 +889,13 @@ transactions, and a multi-currency dashboard.
    - `CRON_SECRET` (any random string, 16+ characters)
 3. `npx prisma migrate deploy`
 4. `npm run dev`
+
+## Internationalization
+
+Routes are locale-prefixed (`/es/...`, `/en/...`), Spanish is the default.
+Message catalogs live in `messages/es.json` and `messages/en.json`, one
+top-level namespace per feature (`Common`, `Auth`, `Categories`,
+`Transactions`, `RecurringTransactions`, `Dashboard`, `Settings`).
 
 ## Cron jobs (production, via `vercel.json`)
 
