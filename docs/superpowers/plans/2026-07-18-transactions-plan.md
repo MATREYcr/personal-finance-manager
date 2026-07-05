@@ -49,6 +49,8 @@ src/app/[locale]/(dashboard)/transactions/page.tsx
 
 **Files:**
 - Create: `src/features/transactions/types.ts`
+- Create: `src/features/transactions/pagination.ts`
+- Create: `src/features/transactions/pagination.test.ts`
 - Create: `src/features/transactions/queries.ts`
 - Create: `src/features/transactions/actions.ts`
 - Create: `src/features/transactions/actions.test.ts`
@@ -56,9 +58,11 @@ src/app/[locale]/(dashboard)/transactions/page.tsx
 
 **Interfaces:**
 - Consumes: `requireSession` (Foundation), `db` (Foundation), `Transaction`/`Category`/`TransactionType` from `@prisma/client`.
-- Produces: `getTransactions(userId, filters)`, `createTransaction(input)`, `updateTransaction(input)`, `deleteTransaction(id)`, `TransactionFilters` type, `queryKeys.transactions` — consumed by Task 2's UI and later by the Recurring Transactions plan's generation cron (which creates `Transaction` rows directly via `db`, not via this module, but must match this schema/shape).
+- Produces: `getTransactions(userId, filters, page)`, `createTransaction(input)`, `updateTransaction(input)`, `deleteTransaction(id)`, `TransactionFilters`/`PaginatedTransactions` types, `TRANSACTIONS_PAGE_SIZE`, `getTotalPages`, `queryKeys.transactions` — consumed by Task 2's UI and later by the Recurring Transactions plan's generation cron (which creates `Transaction` rows directly via `db`, not via this module, but must match this schema/shape).
 
 - [ ] **Step 1: Add the transactions key to the shared query keys file**
+
+The list key includes `page` alongside `filters` so each page is cached/refetched independently.
 
 ```typescript
 // src/lib/query/keys.ts (add alongside the existing `categories` key)
@@ -68,7 +72,8 @@ export const queryKeys = {
   },
   transactions: {
     all: ['transactions'] as const,
-    list: (filters: Record<string, string | undefined>) => ['transactions', filters] as const,
+    list: (filters: Record<string, string | undefined>, page: number) =>
+      ['transactions', filters, page] as const,
   },
 }
 ```
@@ -87,9 +92,77 @@ export interface TransactionFilters {
   from?: string // ISO date
   to?: string // ISO date
 }
+
+export interface PaginatedTransactions {
+  transactions: TransactionWithCategory[]
+  totalCount: number
+  page: number
+  pageSize: number
+}
 ```
 
-- [ ] **Step 3: Write the failing test**
+- [ ] **Step 3: Write the failing test for the pagination math**
+
+```typescript
+// src/features/transactions/pagination.test.ts
+import { describe, it, expect } from 'vitest'
+import { getPaginationParams, getTotalPages, TRANSACTIONS_PAGE_SIZE } from './pagination'
+
+describe('getPaginationParams', () => {
+  it('computes skip/take for the first page', () => {
+    expect(getPaginationParams(1, 20)).toEqual({ skip: 0, take: 20 })
+  })
+
+  it('computes skip/take for a later page', () => {
+    expect(getPaginationParams(3, 20)).toEqual({ skip: 40, take: 20 })
+  })
+
+  it('defaults to TRANSACTIONS_PAGE_SIZE when no pageSize is given', () => {
+    expect(getPaginationParams(1)).toEqual({ skip: 0, take: TRANSACTIONS_PAGE_SIZE })
+  })
+})
+
+describe('getTotalPages', () => {
+  it('rounds up a partial final page', () => {
+    expect(getTotalPages(45, 20)).toBe(3)
+  })
+
+  it('returns exactly the page count when evenly divisible', () => {
+    expect(getTotalPages(40, 20)).toBe(2)
+  })
+
+  it('returns at least 1 page when there are zero results', () => {
+    expect(getTotalPages(0, 20)).toBe(1)
+  })
+})
+```
+
+- [ ] **Step 4: Run test to verify it fails**
+
+Run: `npm test -- pagination.test.ts`
+Expected: FAIL — `Cannot find module './pagination'`.
+
+- [ ] **Step 5: Implement the pagination helper**
+
+```typescript
+// src/features/transactions/pagination.ts
+export const TRANSACTIONS_PAGE_SIZE = 20
+
+export function getPaginationParams(page: number, pageSize: number = TRANSACTIONS_PAGE_SIZE) {
+  return { skip: (page - 1) * pageSize, take: pageSize }
+}
+
+export function getTotalPages(totalCount: number, pageSize: number = TRANSACTIONS_PAGE_SIZE) {
+  return Math.max(1, Math.ceil(totalCount / pageSize))
+}
+```
+
+- [ ] **Step 6: Run test to verify it passes**
+
+Run: `npm test -- pagination.test.ts`
+Expected: PASS (6 tests).
+
+- [ ] **Step 7: Write the failing test for the ownership check**
 
 ```typescript
 // src/features/transactions/actions.test.ts
@@ -156,43 +229,60 @@ describe('createTransaction', () => {
 })
 ```
 
-- [ ] **Step 4: Run test to verify it fails**
+- [ ] **Step 8: Run test to verify it fails**
 
 Run: `npm test -- transactions/actions.test.ts`
 Expected: FAIL — `Cannot find module './actions'`.
 
-- [ ] **Step 5: Write queries.ts**
+- [ ] **Step 9: Write queries.ts**
 
 ```typescript
 // src/features/transactions/queries.ts
 'use cache'
 import { cacheTag } from 'next/cache'
 import { db } from '@/lib/db'
-import type { TransactionFilters } from './types'
+import { getPaginationParams } from './pagination'
+import type { TransactionFilters, PaginatedTransactions } from './types'
 
-export async function getTransactions(userId: string, filters: TransactionFilters = {}) {
+export async function getTransactions(
+  userId: string,
+  filters: TransactionFilters = {},
+  page: number = 1
+): Promise<PaginatedTransactions> {
   cacheTag('transactions')
-  return db.transaction.findMany({
-    where: {
-      userId,
-      ...(filters.categoryId ? { categoryId: filters.categoryId } : {}),
-      ...(filters.type ? { type: filters.type } : {}),
-      ...(filters.from || filters.to
-        ? {
-            date: {
-              ...(filters.from ? { gte: new Date(filters.from) } : {}),
-              ...(filters.to ? { lte: new Date(filters.to) } : {}),
-            },
-          }
-        : {}),
-    },
-    include: { category: true },
-    orderBy: { date: 'desc' },
-  })
+
+  const where = {
+    userId,
+    ...(filters.categoryId ? { categoryId: filters.categoryId } : {}),
+    ...(filters.type ? { type: filters.type } : {}),
+    ...(filters.from || filters.to
+      ? {
+          date: {
+            ...(filters.from ? { gte: new Date(filters.from) } : {}),
+            ...(filters.to ? { lte: new Date(filters.to) } : {}),
+          },
+        }
+      : {}),
+  }
+
+  const { skip, take } = getPaginationParams(page)
+
+  const [transactions, totalCount] = await Promise.all([
+    db.transaction.findMany({
+      where,
+      include: { category: true },
+      orderBy: { date: 'desc' },
+      skip,
+      take,
+    }),
+    db.transaction.count({ where }),
+  ])
+
+  return { transactions, totalCount, page, pageSize: take }
 }
 ```
 
-- [ ] **Step 6: Write actions.ts**
+- [ ] **Step 10: Write actions.ts**
 
 ```typescript
 // src/features/transactions/actions.ts
@@ -258,16 +348,16 @@ export async function deleteTransaction(id: string) {
 
 > Note: the category-ownership error thrown here (`'That category does not exist for this user'`) is a defensive/should-never-happen case (the UI only ever offers the current user's own categories in the select) rather than a user-facing validation message, so unlike Categories' `deleteError` it is not translated — it exists purely to fail loudly if the client-sent id is ever wrong or tampered with.
 
-- [ ] **Step 7: Run test to verify it passes**
+- [ ] **Step 11: Run test to verify it passes**
 
 Run: `npm test -- transactions/actions.test.ts`
 Expected: PASS (2 tests).
 
-- [ ] **Step 8: Commit**
+- [ ] **Step 12: Commit**
 
 ```bash
 git add -A
-git commit -m "feat(transactions): add CRUD queries/actions with category ownership check"
+git commit -m "feat(transactions): add paginated CRUD queries/actions with category ownership check"
 ```
 
 ---
@@ -306,8 +396,9 @@ export async function GET(request: Request) {
     from: searchParams.get('from') ?? undefined,
     to: searchParams.get('to') ?? undefined,
   }
-  const transactions = await getTransactions(session.user.id, filters)
-  return NextResponse.json(transactions)
+  const page = Number(searchParams.get('page') ?? '1') || 1
+  const result = await getTransactions(session.user.id, filters, page)
+  return NextResponse.json(result)
 }
 ```
 
@@ -318,15 +409,16 @@ export async function GET(request: Request) {
 'use client'
 import { useQuery } from '@tanstack/react-query'
 import { queryKeys } from '@/lib/query/keys'
-import type { TransactionFilters } from '../types'
+import type { TransactionFilters, PaginatedTransactions } from '../types'
 
-export function useTransactions(filters: TransactionFilters) {
+export function useTransactions(filters: TransactionFilters, page: number) {
   return useQuery({
-    queryKey: queryKeys.transactions.list(filters as Record<string, string | undefined>),
-    queryFn: async () => {
+    queryKey: queryKeys.transactions.list(filters as Record<string, string | undefined>, page),
+    queryFn: async (): Promise<PaginatedTransactions> => {
       const params = new URLSearchParams(
         Object.entries(filters).filter(([, v]) => v !== undefined) as [string, string][]
       )
+      params.set('page', String(page))
       const res = await fetch(`/api/transactions?${params.toString()}`)
       if (!res.ok) throw new Error('Failed to load transactions')
       return res.json()
@@ -375,7 +467,10 @@ export function useTransactionMutations() {
     "columnCategory": "Categoría",
     "columnType": "Tipo",
     "columnAmount": "Monto",
-    "columnActions": "Acciones"
+    "columnActions": "Acciones",
+    "previous": "Anterior",
+    "next": "Siguiente",
+    "pageInfo": "Página {page} de {totalPages}"
   }
 ```
 
@@ -396,9 +491,14 @@ export function useTransactionMutations() {
     "columnCategory": "Category",
     "columnType": "Type",
     "columnAmount": "Amount",
-    "columnActions": "Actions"
+    "columnActions": "Actions",
+    "previous": "Previous",
+    "next": "Next",
+    "pageInfo": "Page {page} of {totalPages}"
   }
 ```
+
+`pageInfo` uses next-intl's ICU placeholder syntax (`{page}`, `{totalPages}`) — call it as `t('pageInfo', { page, totalPages })`.
 
 - [ ] **Step 5: Filters bar**
 
@@ -575,7 +675,7 @@ export function TransactionFormDialog({
 ```typescript
 // src/features/transactions/components/TransactionList.tsx
 'use client'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
@@ -583,15 +683,24 @@ import { useTransactions } from '../hooks/useTransactions'
 import { useTransactionMutations } from '../hooks/useTransactionMutations'
 import { TransactionFilters } from './TransactionFilters'
 import { TransactionFormDialog } from './TransactionFormDialog'
-import type { TransactionFilters as Filters, TransactionWithCategory } from '../types'
+import { getTotalPages } from '../pagination'
+import type { TransactionFilters as Filters } from '../types'
 
 export function TransactionList() {
   const t = useTranslations('Transactions')
   const tCategories = useTranslations('Categories')
   const tCommon = useTranslations('Common.actions')
   const [filters, setFilters] = useState<Filters>({})
-  const { data: transactions, isLoading } = useTransactions(filters)
+  const [page, setPage] = useState(1)
+  const { data, isLoading } = useTransactions(filters, page)
   const { remove } = useTransactionMutations()
+
+  // Changing filters invalidates what "page 2" even means, so always land back on page 1.
+  useEffect(() => {
+    setPage(1)
+  }, [filters])
+
+  const totalPages = data ? getTotalPages(data.totalCount) : 1
 
   return (
     <div className="space-y-4">
@@ -600,36 +709,59 @@ export function TransactionList() {
         <TransactionFormDialog trigger={<Button>{t('newTransaction')}</Button>} />
       </div>
 
-      {isLoading ? (
+      {isLoading || !data ? (
         <p>{t('loading')}</p>
       ) : (
-        <div className="w-full overflow-x-auto">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>{t('columnDate')}</TableHead>
-                <TableHead>{t('columnCategory')}</TableHead>
-                <TableHead>{t('columnType')}</TableHead>
-                <TableHead className="text-right">{t('columnAmount')}</TableHead>
-                <TableHead className="text-right">{t('columnActions')}</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {(transactions as TransactionWithCategory[] | undefined)?.map((tx) => (
-                <TableRow key={tx.id}>
-                  <TableCell>{new Date(tx.date).toLocaleDateString()}</TableCell>
-                  <TableCell>{tx.category.name}</TableCell>
-                  <TableCell>{tx.type === 'EXPENSE' ? tCategories('typeExpense') : tCategories('typeIncome')}</TableCell>
-                  <TableCell className="text-right">{Number(tx.amount).toFixed(2)} {tx.currency}</TableCell>
-                  <TableCell className="text-right space-x-2">
-                    <TransactionFormDialog transaction={tx} trigger={<Button variant="outline" size="sm">{tCommon('edit')}</Button>} />
-                    <Button variant="destructive" size="sm" onClick={() => remove.mutate(tx.id)}>{tCommon('delete')}</Button>
-                  </TableCell>
+        <>
+          <div className="w-full overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>{t('columnDate')}</TableHead>
+                  <TableHead>{t('columnCategory')}</TableHead>
+                  <TableHead>{t('columnType')}</TableHead>
+                  <TableHead className="text-right">{t('columnAmount')}</TableHead>
+                  <TableHead className="text-right">{t('columnActions')}</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
+              </TableHeader>
+              <TableBody>
+                {data.transactions.map((tx) => (
+                  <TableRow key={tx.id}>
+                    <TableCell>{new Date(tx.date).toLocaleDateString()}</TableCell>
+                    <TableCell>{tx.category.name}</TableCell>
+                    <TableCell>{tx.type === 'EXPENSE' ? tCategories('typeExpense') : tCategories('typeIncome')}</TableCell>
+                    <TableCell className="text-right">{Number(tx.amount).toFixed(2)} {tx.currency}</TableCell>
+                    <TableCell className="text-right space-x-2">
+                      <TransactionFormDialog transaction={tx} trigger={<Button variant="outline" size="sm">{tCommon('edit')}</Button>} />
+                      <Button variant="destructive" size="sm" onClick={() => remove.mutate(tx.id)}>{tCommon('delete')}</Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+          <div className="flex items-center justify-between">
+            <p className="text-sm text-muted-foreground">{t('pageInfo', { page, totalPages })}</p>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={page <= 1}
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+              >
+                {t('previous')}
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={page >= totalPages}
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              >
+                {t('next')}
+              </Button>
+            </div>
+          </div>
+        </>
       )}
     </div>
   )
@@ -656,7 +788,7 @@ export default async function TransactionsPage() {
 
 - [ ] **Step 9: Manual verification**
 
-Run `npm run dev`, visit `/es/transactions`. Create an expense and an income transaction in different currencies, confirm they list correctly, edit one, delete one, confirm the type/category/date filters narrow the list. Switch to `/en/transactions` and confirm full English rendering, then toggle dark mode and confirm legibility. Then go to `/es/categories` and confirm deleting a category that now has a transaction shows the blocked-delete error from the Categories plan, translated.
+Run `npm run dev`, visit `/es/transactions`. Create an expense and an income transaction in different currencies, confirm they list correctly, edit one, delete one, confirm the type/category/date filters narrow the list. To verify pagination without creating 21+ real transactions by hand, temporarily lower `TRANSACTIONS_PAGE_SIZE` in `src/features/transactions/pagination.ts` to `2`, confirm "Previous"/"Next" enable/disable correctly at the first/last page and the page-info text updates, then revert the constant back to `20` before committing. Switch to `/en/transactions` and confirm full English rendering (including the pagination labels), then toggle dark mode and confirm legibility. Then go to `/es/categories` and confirm deleting a category that now has a transaction shows the blocked-delete error from the Categories plan, translated.
 
 - [ ] **Step 10: Commit**
 

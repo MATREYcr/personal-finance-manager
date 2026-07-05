@@ -26,7 +26,10 @@ subsystem lands — this plan never sets it.
 
 ## Features
 
-- **List**: filterable by category, type (expense/income), and date range.
+- **List**: filterable by category, type (expense/income), and date range;
+  paginated (20 per page) since this table has no natural upper bound —
+  unlike Categories or Recurring Transactions, which stay small and
+  user-curated, a transaction history grows indefinitely over time.
 - **CRUD**: create, edit, delete a transaction — type, category, amount,
   currency, date, optional note.
 
@@ -40,3 +43,6 @@ subsystem lands — this plan never sets it.
 
 - Unit test: `createTransaction` rejects a category that doesn't belong to
   the current user; succeeds and persists correctly when it does.
+- Unit tests for the pagination math (`skip`/`take` per page, total page
+  count including the zero-results edge case) — a classic off-by-one bug
+  source, kept as a pure, dependency-free helper so it's cheap to verify.
