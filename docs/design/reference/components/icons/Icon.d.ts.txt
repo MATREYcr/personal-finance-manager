@@ -1,0 +1,6 @@
+export interface IconProps {
+  /** Lucide icon name in kebab-case, e.g. "arrow-up-right", "trash-2", "pencil" */
+  name: string;
+  size?: number;
+  style?: React.CSSProperties;
+}

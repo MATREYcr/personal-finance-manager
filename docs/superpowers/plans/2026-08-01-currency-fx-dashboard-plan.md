@@ -397,7 +397,8 @@ Expected: PASS (2 tests).
 // messages/es.json — add a new top-level "Settings" namespace
   "Settings": {
     "title": "Configuración",
-    "baseCurrency": "Moneda base"
+    "baseCurrency": "Moneda base",
+    "saved": "Guardado"
   }
 ```
 
@@ -405,16 +406,22 @@ Expected: PASS (2 tests).
 // messages/en.json — add a new top-level "Settings" namespace
   "Settings": {
     "title": "Settings",
-    "baseCurrency": "Base currency"
+    "baseCurrency": "Base currency",
+    "saved": "Saved"
   }
 ```
 
 - [ ] **Step 6: Settings form**
 
 ```typescript
+Shows a brief inline "Saved" confirmation next to the button after a
+successful save, per the mockup's `Settings.jsx`, instead of the button
+just returning to its resting state.
+
+```typescript
 // src/features/settings/components/BaseCurrencyForm.tsx
 'use client'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslations } from 'next-intl'
 import { useRouter } from '@/i18n/navigation'
 import { Input } from '@/components/ui/input'
@@ -429,12 +436,22 @@ export function BaseCurrencyForm() {
   const router = useRouter()
   const [currency, setCurrency] = useState((session?.user as { baseCurrency?: string })?.baseCurrency ?? 'USD')
   const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
+
+  // Auto-hide the "Saved" confirmation after a few seconds rather than leaving it on screen forever.
+  useEffect(() => {
+    if (!saved) return
+    const timeout = setTimeout(() => setSaved(false), 3000)
+    return () => clearTimeout(timeout)
+  }, [saved])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setSaving(true)
+    setSaved(false)
     await updateBaseCurrency(currency)
     setSaving(false)
+    setSaved(true)
     router.refresh()
   }
 
@@ -442,7 +459,10 @@ export function BaseCurrencyForm() {
     <form onSubmit={handleSubmit} className="space-y-4 max-w-xs">
       <label className="block text-sm font-medium">{t('baseCurrency')}</label>
       <Input value={currency} maxLength={3} onChange={(e) => setCurrency(e.target.value.toUpperCase())} />
-      <Button type="submit" disabled={saving}>{tCommon('save')}</Button>
+      <div className="flex items-center gap-3">
+        <Button type="submit" disabled={saving}>{tCommon('save')}</Button>
+        {saved && <span className="text-sm font-medium text-[var(--positive)]">{t('saved')}</span>}
+      </div>
     </form>
   )
 }
@@ -468,7 +488,7 @@ export default async function SettingsPage() {
 
 - [ ] **Step 8: Manual verification**
 
-Visit `/es/settings`, change the base currency to `EUR`, save. Switch to `/en/settings` and confirm the label/button are in English. (Full effect on the dashboard is verified in Task 5, once it exists.)
+Visit `/es/settings`, change the base currency to `EUR`, save, and confirm a green "Guardado" confirmation appears next to the button and fades after a few seconds. Switch to `/en/settings` and confirm the label/button/confirmation are in English. (Full effect on the dashboard is verified in Task 5, once it exists.)
 
 - [ ] **Step 9: Commit**
 
@@ -778,17 +798,22 @@ export function SummaryCards({ summary, baseCurrency }: { summary: DashboardSumm
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
       <Card>
         <CardHeader><CardTitle>{t('income')}</CardTitle></CardHeader>
-        <CardContent className="text-2xl font-semibold">{summary.income.toFixed(2)} {baseCurrency}</CardContent>
+        <CardContent className="tabular-nums text-2xl font-semibold text-[var(--positive)]">
+          {summary.income.toFixed(2)} {baseCurrency}
+        </CardContent>
       </Card>
       <Card>
         <CardHeader><CardTitle>{t('expense')}</CardTitle></CardHeader>
-        <CardContent className="text-2xl font-semibold">{summary.expense.toFixed(2)} {baseCurrency}</CardContent>
+        <CardContent className="tabular-nums text-2xl font-semibold text-destructive">
+          {summary.expense.toFixed(2)} {baseCurrency}
+        </CardContent>
       </Card>
-      <Card>
+      {/* Savings gets a subtle accent-tinted border per the mockup, distinguishing it as the headline figure */}
+      <Card className="border-primary/30">
         <CardHeader><CardTitle>{t('savings')}</CardTitle></CardHeader>
         <CardContent
-          className={`text-2xl font-semibold ${
-            summary.savings >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-destructive'
+          className={`tabular-nums text-2xl font-semibold ${
+            summary.savings >= 0 ? 'text-[var(--positive)]' : 'text-destructive'
           }`}
         >
           {summary.savings.toFixed(2)} {baseCurrency}
@@ -842,7 +867,7 @@ export default async function DashboardPage({
 
 - [ ] **Step 5: Manual verification**
 
-Run `npm run dev`. `/es/dashboard` shows Income/Expense/Savings (translated) for the current month. Switching period tabs updates the numbers. Add a transaction, revisit dashboard, confirm totals reflect it. Change base currency in `/es/settings`, confirm dashboard values and suffix update. Switch to `/en/dashboard` and confirm full English rendering. Toggle dark mode and confirm the savings figure stays legible in both a positive and a negative state.
+Run `npm run dev`. `/es/dashboard` shows Income/Expense/Savings (translated) for the current month — Income in the positive/green tone, Expense in the destructive/red tone, and the Savings card with a visible accent-tinted border and its own positive/negative coloring depending on sign. Switching period tabs updates the numbers. Add a transaction, revisit dashboard, confirm totals reflect it. Change base currency in `/es/settings`, confirm dashboard values and suffix update. Switch to `/en/dashboard` and confirm full English rendering. Toggle dark mode and confirm every figure and the Savings card border stay legible in both a positive and a negative state.
 
 - [ ] **Step 6: Commit**
 

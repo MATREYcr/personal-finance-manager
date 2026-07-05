@@ -1,0 +1,68 @@
+const sampleTx = [
+  { date: '2026-07-01', category: 'Salary', type: 'Income', amount: '3,000.00', currency: 'USD' },
+  { date: '2026-07-02', category: 'Market', type: 'Expense', amount: '84.30', currency: 'USD' },
+  { date: '2026-07-03', category: 'Transport', type: 'Expense', amount: '42.00', currency: 'EUR' },
+  { date: '2026-07-04', category: 'Entertainment', type: 'Expense', amount: '25.99', currency: 'USD' },
+];
+
+function Dashboard({ Tabs, Card, CardHeader, CardTitle, CardContent, period, setPeriod, Table, TableHead, TableHeadRow, TableHeaderCell, TableBody, TableRow, TableCell, Badge }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 24, maxWidth: 'var(--content-max-width)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
+        <h1 style={{ fontSize: 'var(--text-2xl)', fontWeight: 700 }}>Dashboard</h1>
+        <Tabs tabs={[{ value: 'week', label: 'Week' }, { value: 'month', label: 'Month' }, { value: 'year', label: 'Year' }]} value={period} onChange={setPeriod} />
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16 }}>
+        <Card>
+          <CardHeader><CardTitle style={{ fontSize: 'var(--text-base)', color: 'var(--text-secondary)', fontWeight: 500 }}>Income</CardTitle></CardHeader>
+          <CardContent>
+            <span className="amount" style={{ fontSize: 'var(--text-3xl)', fontWeight: 700, color: 'var(--positive)' }}>3,200.00</span>
+            <span style={{ marginLeft: 8, fontSize: 'var(--text-base)', color: 'var(--text-muted)' }}>USD</span>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader><CardTitle style={{ fontSize: 'var(--text-base)', color: 'var(--text-secondary)', fontWeight: 500 }}>Expense</CardTitle></CardHeader>
+          <CardContent>
+            <span className="amount" style={{ fontSize: 'var(--text-3xl)', fontWeight: 700, color: 'var(--negative)' }}>2,140.50</span>
+            <span style={{ marginLeft: 8, fontSize: 'var(--text-base)', color: 'var(--text-muted)' }}>USD</span>
+          </CardContent>
+        </Card>
+        <Card style={{ borderColor: 'rgba(var(--accent-rgb), 0.35)' }}>
+          <CardHeader><CardTitle style={{ fontSize: 'var(--text-base)', color: 'var(--text-secondary)', fontWeight: 500 }}>Savings</CardTitle></CardHeader>
+          <CardContent>
+            <span className="amount" style={{ fontSize: 'var(--text-3xl)', fontWeight: 700, color: 'var(--positive)' }}>+1,059.50</span>
+            <span style={{ marginLeft: 8, fontSize: 'var(--text-base)', color: 'var(--text-muted)' }}>USD</span>
+          </CardContent>
+        </Card>
+      </div>
+
+      <Card>
+        <CardHeader><CardTitle>Recent transactions</CardTitle></CardHeader>
+        <CardContent style={{ paddingTop: 8 }}>
+          <Table>
+            <TableHead><TableHeadRow>
+              <TableHeaderCell>Date</TableHeaderCell>
+              <TableHeaderCell>Category</TableHeaderCell>
+              <TableHeaderCell>Type</TableHeaderCell>
+              <TableHeaderCell align="right">Amount</TableHeaderCell>
+            </TableHeadRow></TableHead>
+            <TableBody>
+              {sampleTx.map((t, i) => (
+                <TableRow key={i}>
+                  <TableCell style={{ color: 'var(--text-secondary)' }}>{t.date}</TableCell>
+                  <TableCell>{t.category}</TableCell>
+                  <TableCell><Badge variant={t.type === 'Income' ? 'positive' : 'negative'}>{t.type}</Badge></TableCell>
+                  <TableCell align="right" amount style={{ fontWeight: 600, color: t.type === 'Income' ? 'var(--positive)' : 'var(--negative)' }}>
+                    {t.type === 'Income' ? '+' : '−'}{t.amount} {t.currency}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+window.Dashboard = Dashboard;

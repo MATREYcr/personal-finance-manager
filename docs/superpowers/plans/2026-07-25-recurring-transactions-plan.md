@@ -29,6 +29,7 @@
 - `.env.example` already documents `CRON_SECRET` (added in Foundation) — set a real value in `.env.local` before testing the cron endpoint in this plan.
 - `vercel.json` does not exist yet in this codebase unless a prior plan created it — if absent, create it in Task 3 of this plan; if present (e.g. from a differently-ordered execution), append to its `crons` array instead of overwriting it.
 - `messages/es.json` / `messages/en.json` already contain `Common`, `Auth`, `Categories`, `Transactions` — this plan adds a new top-level `RecurringTransactions` namespace.
+- shadcn components already installed (button, input, label, card, dialog, form, table, select, tabs, badge, alert, sheet) and `lucide-react` is available for row-action icons.
 
 ---
 
@@ -510,6 +511,7 @@ export function RecurringTransactionFormDialog({
 // src/features/recurring-transactions/components/RecurringTransactionList.tsx
 'use client'
 import { useTranslations } from 'next-intl'
+import { Pencil, Trash2, Pause, Play } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
@@ -555,17 +557,45 @@ export function RecurringTransactionList() {
                 <TableCell className="text-right">{Number(rule.amount).toFixed(2)} {rule.currency}</TableCell>
                 <TableCell>{t(frequencyKey[rule.frequency])}</TableCell>
                 <TableCell>{new Date(rule.nextRunDate).toLocaleDateString()}</TableCell>
-                <TableCell><Badge variant={rule.active ? 'default' : 'secondary'}>{rule.active ? t('statusActive') : t('statusPaused')}</Badge></TableCell>
+                <TableCell>
+                  <Badge variant={rule.active ? 'default' : 'secondary'} className="gap-1.5">
+                    <span
+                      className={`h-1.5 w-1.5 rounded-full ${rule.active ? 'bg-[var(--positive)]' : 'bg-muted-foreground'}`}
+                    />
+                    {rule.active ? t('statusActive') : t('statusPaused')}
+                  </Badge>
+                </TableCell>
                 <TableCell className="text-right space-x-2">
-                  <RecurringTransactionFormDialog rule={rule} trigger={<Button variant="outline" size="sm">{tCommon('edit')}</Button>} />
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => toggleActive.mutate({ id: rule.id, active: !rule.active })}
-                  >
-                    {rule.active ? t('pause') : t('resume')}
+                  <RecurringTransactionFormDialog
+                    rule={rule}
+                    trigger={
+                      <Button size="icon" aria-label={tCommon('edit')}>
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                    }
+                  />
+                  {rule.active ? (
+                    <Button
+                      variant="secondary"
+                      size="icon"
+                      aria-label={t('pause')}
+                      onClick={() => toggleActive.mutate({ id: rule.id, active: false })}
+                    >
+                      <Pause className="h-4 w-4" />
+                    </Button>
+                  ) : (
+                    <Button
+                      size="icon"
+                      aria-label={t('resume')}
+                      className="bg-[var(--positive)] text-white hover:opacity-90"
+                      onClick={() => toggleActive.mutate({ id: rule.id, active: true })}
+                    >
+                      <Play className="h-4 w-4" />
+                    </Button>
+                  )}
+                  <Button variant="destructive" size="icon" aria-label={tCommon('delete')} onClick={() => remove.mutate(rule.id)}>
+                    <Trash2 className="h-4 w-4" />
                   </Button>
-                  <Button variant="destructive" size="sm" onClick={() => remove.mutate(rule.id)}>{tCommon('delete')}</Button>
                 </TableCell>
               </TableRow>
             ))}
@@ -597,7 +627,7 @@ export default async function RecurringTransactionsPage() {
 
 - [ ] **Step 8: Manual verification**
 
-Run `npm run dev`, visit `/es/recurring-transactions`, create a monthly "Salary" rule dated today, confirm it lists with the correct next-run date and translated frequency/status labels, pause/resume it, edit it, delete it. Switch to `/en/recurring-transactions` and confirm full English rendering, then toggle dark mode and confirm the status badge remains legible in both themes.
+Run `npm run dev`, visit `/es/recurring-transactions`, create a monthly "Salary" rule dated today, confirm it lists with the correct next-run date and translated frequency/status labels (status badge shows a colored dot — green when active, gray when paused), row actions render as solid icon buttons (accent edit, gray pause / green resume, destructive delete), pause/resume it, edit it, delete it. Switch to `/en/recurring-transactions` and confirm full English rendering, then toggle dark mode and confirm the status badge remains legible in both themes.
 
 - [ ] **Step 9: Commit**
 

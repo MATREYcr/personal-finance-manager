@@ -39,6 +39,63 @@ foundation does *not* populate (`categories`, `transactions`,
 `recurring-transactions`, `dashboard`, `settings`) are created by their own
 specs.
 
+## Visual design system
+
+A high-fidelity mockup lives at `docs/design/` (`README.md` + `reference/`)
+and is the **source of truth for how the app looks** — colors, type,
+spacing, radii, shadows, and interaction states. The reference files
+(`reference/components/*.jsx`, `reference/ui_kit_app/*.jsx`) are HTML/CSS/
+React prototypes, not code to copy verbatim — every screen is rebuilt with
+real shadcn/ui + Tailwind, matching the mockup's *look*, not its inline-style
+implementation. Key values (full detail in `docs/design/README.md` and
+`docs/design/reference/tokens/*.css`):
+
+- **Font**: Geist (weights 400–800) for everything, loaded via
+  `next/font/google` — no secondary font.
+- **Accent**: purple `#7c3aed` light / `#9d6bff` dark → shadcn's `--primary`.
+- **Neutrals**: page bg `#f7f7f8` / card `#ffffff` / border `#e4e4e7` /
+  muted text `#71717a` / primary text `#09090b` (light). Dark: page
+  `#0a0a0b` / card `#161618` / sunken `#1c1c1f` / border `#27272a`.
+- **Semantic colors** (kept separate from the accent): positive/income
+  `#15803d` (bg `#dcfce7`), negative/expense → shadcn's `--destructive`
+  `#dc2626` (bg `#fef2f2`), warning/paused `#b45309` (bg `#fffbeb`). Dark
+  mode uses translucent overlay variants — see `tokens/colors.css`.
+- **Radius**: controls/inputs `8px`, cards/tables `12px`, dialogs `14px`,
+  badges/pills `9999px` (full).
+- **Shadows**: quiet and close — cards `0 1px 3px rgba(0,0,0,.04)`, dialogs
+  `0 24px 60px rgba(0,0,0,.30)`.
+- **Type scale**: xs 11 · sm 12 · base 14 · md 15 · lg 17 · xl 18 · 2xl 24 ·
+  3xl 30 · 4xl 40 (px). Every monetary figure uses `tabular-nums`.
+- **Row height**: tables are generous (56px rows), not shadcn's compact
+  default.
+- **Interaction states**: filled buttons brighten on hover and shift down
+  1px on press; every focusable control gets an accent border + 3px soft
+  ring; loading state is a skeleton shimmer, never a spinner; dialogs pop in
+  (`scale(.97)→1`, 180ms) over a blurred scrim.
+- **Nav chrome**: desktop = 240px left sidebar (active link = accent-tinted
+  background + 3px left accent border) with a user chip (initials avatar +
+  sign-out) in the footer, plus a separate 60px topbar holding an EN/ES
+  language toggle and the light/dark theme toggle. Mobile (<768px): sidebar
+  collapses into a topbar + slide-down drawer; the same language/theme
+  toggles live in the mobile topbar.
+- **Row actions in tables** are solid icon buttons, not ghost/outline:
+  edit = solid accent, delete = solid destructive, pause = solid neutral,
+  resume = solid positive — all achievable with shadcn's existing Button
+  variants (`default`, `destructive`, `secondary`) plus the positive token
+  for resume, each rendered `size="icon"` with a Lucide icon instead of a
+  text label.
+- **Savings card** on the dashboard gets a subtle accent-tinted border, and
+  its figure uses the positive/negative semantic tokens, not an ad hoc
+  color.
+- **Category delete-blocked error** renders as an inline destructive Alert
+  (shadcn's `Alert` component), not a bare paragraph.
+- **Settings save** shows a brief inline "Saved" confirmation next to the
+  button, not just the button returning to its resting state.
+
+Every downstream spec (Categories, Transactions, Recurring Transactions,
+Currency/FX/Dashboard) must apply these tokens/patterns for its own screens
+and components — this is not optional polish, it's the agreed visual spec.
+
 ## Data model (Prisma) — decided in full here
 
 ### User (extends Better Auth's user table)

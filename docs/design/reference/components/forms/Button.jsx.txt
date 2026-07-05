@@ -1,0 +1,72 @@
+import React, { useState } from 'react';
+
+/**
+ * Button — primary UI action element. Mirrors shadcn/ui's button variant/size API,
+ * styled to the reference system: brightness-shift hover, 1px press-down, box-shadow
+ * only on filled variants.
+ */
+export function Button({
+  variant = 'default',
+  size = 'default',
+  disabled = false,
+  type = 'button',
+  onClick,
+  children,
+  style,
+  ...rest
+}) {
+  const [hover, setHover] = useState(false);
+  const [active, setActive] = useState(false);
+
+  const base = {
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    fontFamily: 'var(--font-heading)',
+    fontWeight: 600,
+    fontSize: 'var(--text-base)',
+    borderRadius: 'var(--radius-md)',
+    border: '1px solid transparent',
+    cursor: disabled ? 'not-allowed' : 'pointer',
+    opacity: disabled ? 0.5 : 1,
+    transition: 'filter 120ms ease, background-color 120ms ease, color 120ms ease, transform 80ms ease',
+    whiteSpace: 'nowrap',
+    transform: active && !disabled ? 'translateY(1px)' : 'none',
+  };
+
+  const sizes = {
+    sm: { height: 32, padding: '0 12px', fontSize: 'var(--text-sm)' },
+    default: { height: 36, padding: '0 15px' },
+    lg: { height: 42, padding: '0 20px', fontSize: 'var(--text-lg)' },
+    icon: { height: 34, width: 34, padding: 0 },
+  };
+
+  const filledHover = !disabled && hover ? { filter: 'brightness(1.08)' } : {};
+  const surfaceHover = !disabled && hover ? { background: 'var(--surface-hover)' } : {};
+
+  const variants = {
+    default: { background: 'var(--accent)', color: 'var(--text-on-accent)', borderColor: 'var(--accent)', boxShadow: 'var(--shadow-md)', ...filledHover },
+    destructive: { background: 'var(--negative)', color: '#fff', borderColor: 'var(--negative)', boxShadow: 'var(--shadow-md)', ...filledHover },
+    outline: { background: 'var(--surface-card)', color: 'var(--text-primary)', borderColor: 'var(--border-default)', ...surfaceHover },
+    secondary: { background: 'var(--surface-sunken)', color: 'var(--text-primary)', borderColor: 'var(--surface-sunken)', ...surfaceHover },
+    ghost: { background: 'var(--surface-sunken)', color: 'var(--text-primary)', borderColor: hover ? 'var(--border-default)' : 'transparent', ...(hover ? { background: 'var(--border-default)' } : {}) },
+    link: { background: 'transparent', color: 'var(--text-link)', borderColor: 'transparent', textDecoration: hover ? 'underline' : 'none', textUnderlineOffset: 3 },
+  };
+
+  return (
+    <button
+      type={type}
+      disabled={disabled}
+      onClick={onClick}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => { setHover(false); setActive(false); }}
+      onMouseDown={() => setActive(true)}
+      onMouseUp={() => setActive(false)}
+      style={{ ...base, ...sizes[size], ...variants[variant], ...style }}
+      {...rest}
+    >
+      {children}
+    </button>
+  );
+}

@@ -1,0 +1,7 @@
+export interface BadgeProps {
+  variant?: 'default' | 'positive' | 'negative' | 'outline' | 'warning';
+  /** Show a small leading status dot (matches the row-status pattern) */
+  dot?: boolean;
+  children?: React.ReactNode;
+  style?: React.CSSProperties;
+}

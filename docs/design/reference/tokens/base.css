@@ -1,0 +1,35 @@
+/* ============================================================
+   BASE RESET
+   Minimal, so components carry the actual look.
+   ============================================================ */
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font-family: var(--font-body);
+  font-size: var(--text-base);
+  color: var(--text-primary);
+  background: var(--surface-page);
+  -webkit-font-smoothing: antialiased;
+}
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-heading);
+  margin: 0;
+  color: var(--text-primary);
+  letter-spacing: var(--tracking-tight);
+}
+button, input, select, textarea { font-family: inherit; }
+
+@keyframes pfm-skeleton {
+  0% { background-position: -260px 0; }
+  100% { background-position: 260px 0; }
+}
+
+@keyframes pfm-pop {
+  from { opacity: 0; transform: scale(0.97) translateY(4px); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes pfm-toast {
+  from { opacity: 0; transform: translateY(10px) scale(0.98); }
+  to { opacity: 1; transform: none; }
+}

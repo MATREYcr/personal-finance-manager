@@ -1,0 +1,8 @@
+export interface DialogProps {
+  open: boolean;
+  onClose?: () => void;
+  title?: string;
+  description?: string;
+  children?: React.ReactNode;
+  footer?: React.ReactNode;
+}

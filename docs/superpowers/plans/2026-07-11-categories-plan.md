@@ -25,7 +25,7 @@
 - `Category` model in `prisma/schema.prisma` (via `@prisma/client`).
 - `queryKeys` at `@/lib/query/keys` (this plan adds a `categories` key to it).
 - `<QueryProvider>`, `<ThemeProvider>`, and `<NextIntlClientProvider>` already wired in `src/app/[locale]/layout.tsx`.
-- shadcn components already installed: button, input, label, card, dialog, form, table, select, tabs, badge.
+- shadcn components already installed: button, input, label, card, dialog, form, table, select, tabs, badge, alert, sheet. `lucide-react` is available (installed alongside shadcn init) for row-action icons.
 - `src/app/[locale]/(dashboard)/layout.tsx` nav already links to `/categories` and reads `Common.nav`/`Common.actions` keys from the message catalogs.
 - `messages/es.json` / `messages/en.json` already contain `Common` and `Auth` namespaces — this plan adds a new top-level `Categories` namespace.
 
@@ -556,12 +556,16 @@ export function CategoryFormDialog({ category, trigger }: { category?: Category;
 
 - [ ] **Step 7: List component**
 
+Row actions are solid icon buttons per the mockup (edit = solid accent, delete = solid destructive), and the delete-blocked error renders as an inline destructive `Alert`, not a bare paragraph.
+
 ```typescript
 // src/features/categories/components/CategoryList.tsx
 'use client'
+import { Pencil, Trash2 } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 import { useCategories } from '../hooks/useCategories'
 import { useCategoryMutations } from '../hooks/useCategoryMutations'
 import { CategoryFormDialog } from './CategoryFormDialog'
@@ -595,14 +599,22 @@ export function CategoryList() {
                 <TableCell>{category.name}</TableCell>
                 <TableCell>{category.type === 'EXPENSE' ? t('typeExpense') : t('typeIncome')}</TableCell>
                 <TableCell className="text-right space-x-2">
-                  <CategoryFormDialog category={category} trigger={<Button variant="outline" size="sm">{tCommon('edit')}</Button>} />
+                  <CategoryFormDialog
+                    category={category}
+                    trigger={
+                      <Button size="icon" aria-label={tCommon('edit')}>
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                    }
+                  />
                   <Button
                     variant="destructive"
-                    size="sm"
+                    size="icon"
+                    aria-label={tCommon('delete')}
                     onClick={() => remove.mutate(category.id)}
                     disabled={remove.isPending}
                   >
-                    {tCommon('delete')}
+                    <Trash2 className="h-4 w-4" />
                   </Button>
                 </TableCell>
               </TableRow>
@@ -611,7 +623,9 @@ export function CategoryList() {
         </Table>
       </div>
       {remove.isError && (
-        <p className="text-sm text-destructive">{(remove.error as Error).message}</p>
+        <Alert variant="destructive">
+          <AlertDescription>{(remove.error as Error).message}</AlertDescription>
+        </Alert>
       )}
     </div>
   )
@@ -638,7 +652,7 @@ export default async function CategoriesPage() {
 
 - [ ] **Step 9: Manual verification**
 
-Run `npm run dev`, sign in, visit `/es/categories`. Confirm: the 9 seeded categories render with translated type labels; creating a new category adds a row; editing changes it; deleting a category with no transactions succeeds. Switch to `/en/categories` and confirm the page renders fully in English. Toggle dark mode and confirm the table/dialog remain legible. (The delete-blocked error path can only be fully exercised once the Transactions plan lands, but the code path and its unit test already cover it.)
+Run `npm run dev`, sign in, visit `/es/categories`. Confirm: the 9 seeded categories render with translated type labels; the edit/delete row actions render as solid icon buttons (accent and destructive respectively), not ghost/outline; creating a new category adds a row; editing changes it; deleting a category with no transactions succeeds. Switch to `/en/categories` and confirm the page renders fully in English. Toggle dark mode and confirm the table/dialog remain legible. (The delete-blocked error path — rendered as a destructive `Alert` — can only be fully exercised once the Transactions plan lands, but the code path and its unit test already cover it.)
 
 - [ ] **Step 10: Commit**
 

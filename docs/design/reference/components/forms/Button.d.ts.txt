@@ -1,0 +1,13 @@
+import React from 'react';
+
+export interface ButtonProps {
+  /** Visual style */
+  variant?: 'default' | 'destructive' | 'outline' | 'secondary' | 'ghost' | 'link';
+  /** Control height */
+  size?: 'sm' | 'default' | 'lg' | 'icon';
+  disabled?: boolean;
+  type?: 'button' | 'submit' | 'reset';
+  onClick?: (e: React.MouseEvent) => void;
+  children?: React.ReactNode;
+  style?: React.CSSProperties;
+}

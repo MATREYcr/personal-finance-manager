@@ -26,6 +26,7 @@
 - `useCategories()` hook at `@/features/categories/hooks/useCategories` and `Category` type at `@/features/categories/types` — used for the category-select dropdown. The `Categories` namespace in the message catalogs already provides `typeExpense`/`typeIncome` labels, reused here via `useTranslations('Categories')` where a category type needs to be displayed.
 - `src/app/[locale]/(dashboard)/layout.tsx` nav already links to `/transactions`.
 - `messages/es.json` / `messages/en.json` already contain `Common`, `Auth`, `Categories` — this plan adds a new top-level `Transactions` namespace.
+- shadcn components already installed (button, input, label, card, dialog, form, table, select, tabs, badge, alert, sheet) and `lucide-react` is available for row-action icons.
 
 ---
 
@@ -676,6 +677,7 @@ export function TransactionFormDialog({
 // src/features/transactions/components/TransactionList.tsx
 'use client'
 import { useEffect, useState } from 'react'
+import { Pencil, Trash2 } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
@@ -730,10 +732,25 @@ export function TransactionList() {
                     <TableCell>{new Date(tx.date).toLocaleDateString()}</TableCell>
                     <TableCell>{tx.category.name}</TableCell>
                     <TableCell>{tx.type === 'EXPENSE' ? tCategories('typeExpense') : tCategories('typeIncome')}</TableCell>
-                    <TableCell className="text-right">{Number(tx.amount).toFixed(2)} {tx.currency}</TableCell>
+                    <TableCell
+                      className={`text-right tabular-nums font-medium ${
+                        tx.type === 'INCOME' ? 'text-[var(--positive)]' : 'text-destructive'
+                      }`}
+                    >
+                      {tx.type === 'INCOME' ? '+' : '−'}{Number(tx.amount).toFixed(2)} {tx.currency}
+                    </TableCell>
                     <TableCell className="text-right space-x-2">
-                      <TransactionFormDialog transaction={tx} trigger={<Button variant="outline" size="sm">{tCommon('edit')}</Button>} />
-                      <Button variant="destructive" size="sm" onClick={() => remove.mutate(tx.id)}>{tCommon('delete')}</Button>
+                      <TransactionFormDialog
+                        transaction={tx}
+                        trigger={
+                          <Button size="icon" aria-label={tCommon('edit')}>
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                        }
+                      />
+                      <Button variant="destructive" size="icon" aria-label={tCommon('delete')} onClick={() => remove.mutate(tx.id)}>
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -788,7 +805,7 @@ export default async function TransactionsPage() {
 
 - [ ] **Step 9: Manual verification**
 
-Run `npm run dev`, visit `/es/transactions`. Create an expense and an income transaction in different currencies, confirm they list correctly, edit one, delete one, confirm the type/category/date filters narrow the list. To verify pagination without creating 21+ real transactions by hand, temporarily lower `TRANSACTIONS_PAGE_SIZE` in `src/features/transactions/pagination.ts` to `2`, confirm "Previous"/"Next" enable/disable correctly at the first/last page and the page-info text updates, then revert the constant back to `20` before committing. Switch to `/en/transactions` and confirm full English rendering (including the pagination labels), then toggle dark mode and confirm legibility. Then go to `/es/categories` and confirm deleting a category that now has a transaction shows the blocked-delete error from the Categories plan, translated.
+Run `npm run dev`, visit `/es/transactions`. Create an expense and an income transaction in different currencies, confirm they list correctly with income shown in the positive/green tone with a `+` prefix and expense in the destructive/red tone with a `−` prefix, and the edit/delete row actions rendering as solid icon buttons; edit one, delete one, confirm the type/category/date filters narrow the list. To verify pagination without creating 21+ real transactions by hand, temporarily lower `TRANSACTIONS_PAGE_SIZE` in `src/features/transactions/pagination.ts` to `2`, confirm "Previous"/"Next" enable/disable correctly at the first/last page and the page-info text updates, then revert the constant back to `20` before committing. Switch to `/en/transactions` and confirm full English rendering (including the pagination labels), then toggle dark mode and confirm legibility. Then go to `/es/categories` and confirm deleting a category that now has a transaction shows the blocked-delete error from the Categories plan, translated.
 
 - [ ] **Step 10: Commit**
 

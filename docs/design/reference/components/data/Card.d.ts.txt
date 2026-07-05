@@ -1,0 +1,9 @@
+export interface CardProps {
+  children?: React.ReactNode;
+  style?: React.CSSProperties;
+}
+export interface CardHeaderProps { children?: React.ReactNode; style?: React.CSSProperties; }
+export interface CardTitleProps { children?: React.ReactNode; style?: React.CSSProperties; }
+export interface CardDescriptionProps { children?: React.ReactNode; style?: React.CSSProperties; }
+export interface CardContentProps { children?: React.ReactNode; style?: React.CSSProperties; }
+export interface CardFooterProps { children?: React.ReactNode; style?: React.CSSProperties; }
