@@ -92,5 +92,13 @@
     "title": "Configuración",
     "baseCurrency": "Moneda base",
     "saved": "Guardado"
+  },
+  "Dashboard": {
+    "week": "Semana",
+    "month": "Mes",
+    "year": "Año",
+    "income": "Ingresos",
+    "expense": "Gastos",
+    "savings": "Ahorro"
   }
 }
