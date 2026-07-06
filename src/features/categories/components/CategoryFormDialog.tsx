@@ -1,4 +1,5 @@
 'use client'
+import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -24,10 +25,20 @@ export function CategoryFormDialog({ category, trigger }: { category?: Category;
   const t = useTranslations('Categories')
   const tCommon = useTranslations('Common.actions')
   const { create, update } = useCategoryMutations()
+  const [open, setOpen] = useState(false)
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
     defaultValues: { name: category?.name ?? '', type: category?.type ?? 'EXPENSE' },
   })
+
+  function handleOpenChange(next: boolean) {
+    // Re-sync the form to the category's current values (or a blank slate for
+    // "new") every time the dialog opens — react-hook-form's defaultValues is
+    // only read once at mount, so without this a persistent row instance would
+    // keep showing the values from the first time it was ever opened.
+    if (next) form.reset({ name: category?.name ?? '', type: category?.type ?? 'EXPENSE' })
+    setOpen(next)
+  }
 
   async function onSubmit(values: FormValues) {
     if (category) {
@@ -35,10 +46,11 @@ export function CategoryFormDialog({ category, trigger }: { category?: Category;
     } else {
       await create.mutateAsync(values)
     }
+    setOpen(false)
   }
 
   return (
-    <Dialog>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger render={trigger} />
       <DialogContent>
         <DialogHeader>
