@@ -4,6 +4,7 @@ import { Geist } from 'next/font/google'
 import { hasLocale, NextIntlClientProvider } from 'next-intl'
 import { getTranslations, setRequestLocale } from 'next-intl/server'
 import { routing } from '@/i18n/routing'
+import { ThemeProvider } from '@/components/theme-provider'
 import '../globals.css'
 
 const geist = Geist({ subsets: ['latin'], weight: ['400', '500', '600', '700', '800'] })
@@ -34,9 +35,11 @@ export default async function LocaleLayout({
   setRequestLocale(locale)
 
   return (
-    <html lang={locale}>
+    <html lang={locale} suppressHydrationWarning>
       <body className={geist.className}>
-        <NextIntlClientProvider>{children}</NextIntlClientProvider>
+        <NextIntlClientProvider>
+          <ThemeProvider>{children}</ThemeProvider>
+        </NextIntlClientProvider>
       </body>
     </html>
   )
