@@ -4,7 +4,7 @@ import { useTranslations } from 'next-intl'
 import { Link, usePathname } from '@/i18n/navigation'
 import { signOut, useSession } from '@/lib/auth/client'
 import { Button } from '@/components/ui/button'
-import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet'
+import { Sheet, SheetContent, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
 import { ThemeToggle } from '@/components/theme-toggle'
 import { LanguageToggle } from '@/components/language-toggle'
 import { LayoutDashboard, Receipt, Tag, Repeat, Settings as SettingsIcon, LogOut, Menu } from 'lucide-react'
@@ -105,6 +105,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               <Menu className="h-5 w-5" />
             </SheetTrigger>
             <SheetContent side="left" className="w-72 p-4">
+              <SheetTitle className="sr-only">{tNav('menu')}</SheetTitle>
               <NavLinks onNavigate={() => setMobileOpen(false)} />
               <div className="mt-4">
                 <UserChip name={name} email={email} />
