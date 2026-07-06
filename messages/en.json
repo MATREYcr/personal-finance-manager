@@ -87,5 +87,10 @@
     "statusPaused": "Paused",
     "pause": "Pause",
     "resume": "Resume"
+  },
+  "Settings": {
+    "title": "Settings",
+    "baseCurrency": "Base currency",
+    "saved": "Saved"
   }
 }

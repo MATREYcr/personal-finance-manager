@@ -87,5 +87,10 @@
     "statusPaused": "Pausada",
     "pause": "Pausar",
     "resume": "Reanudar"
+  },
+  "Settings": {
+    "title": "Configuración",
+    "baseCurrency": "Moneda base",
+    "saved": "Guardado"
   }
 }
