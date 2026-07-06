@@ -37,11 +37,13 @@ describe('createTransaction', () => {
 
   it('creates the transaction when the category belongs to the user', async () => {
     mockDb.category.findFirst.mockResolvedValue({ id: 'cat-1' })
-    // Prisma resolves `amount` as a Decimal instance in real usage; a plain
-    // number here is enough to exercise createTransaction's coercion of it
-    // back to a plain number (Decimal isn't serializable across the Server
-    // Action boundary).
-    mockDb.transaction.create.mockResolvedValue({ id: 'tx-1', amount: 10 })
+    // Prisma resolves `amount` as a Decimal instance in real usage — an object
+    // with a numeric valueOf/toString, NOT a plain number. Mock that shape so
+    // this test actually exercises createTransaction's coercion of it back to a
+    // plain number (a Decimal isn't serializable across the Server Action
+    // boundary and would crash the client without the coercion).
+    const decimalLike = { valueOf: () => 10, toString: () => '10' }
+    mockDb.transaction.create.mockResolvedValue({ id: 'tx-1', amount: decimalLike })
 
     const result = await createTransaction({
       categoryId: 'cat-1',
@@ -51,7 +53,9 @@ describe('createTransaction', () => {
       date: '2026-07-01',
     })
 
+    // The Decimal-like object must have been coerced to the primitive number 10.
     expect(result).toEqual({ id: 'tx-1', amount: 10 })
+    expect(typeof result.amount).toBe('number')
     expect(mockDb.transaction.create).toHaveBeenCalledWith({
       data: {
         userId: 'user-1',
