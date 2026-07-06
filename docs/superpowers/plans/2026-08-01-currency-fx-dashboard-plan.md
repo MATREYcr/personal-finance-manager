@@ -185,13 +185,23 @@ describe('refreshExchangeRates', () => {
     })
   })
 
-  it('does not throw and updates nothing when the API call fails', async () => {
+  it('does not throw and updates nothing when the API returns an error status', async () => {
     const mockDb = { exchangeRate: { upsert: vi.fn() } } as any
     const mockFetch = vi.fn().mockResolvedValue({ ok: false })
 
     const result = await refreshExchangeRates(mockDb, mockFetch as unknown as typeof fetch)
 
     expect(result).toEqual({ updated: 0, error: expect.any(String) })
+    expect(mockDb.exchangeRate.upsert).not.toHaveBeenCalled()
+  })
+
+  it('does not throw and updates nothing when the fetch itself rejects', async () => {
+    const mockDb = { exchangeRate: { upsert: vi.fn() } } as any
+    const mockFetch = vi.fn().mockRejectedValue(new Error('ECONNRESET'))
+
+    const result = await refreshExchangeRates(mockDb, mockFetch as unknown as typeof fetch)
+
+    expect(result).toEqual({ updated: 0, error: 'ECONNRESET' })
     expect(mockDb.exchangeRate.upsert).not.toHaveBeenCalled()
   })
 })
@@ -223,12 +233,23 @@ export async function refreshExchangeRates(
   db: PrismaClient,
   fetchImpl: typeof fetch = fetch
 ): Promise<{ updated: number; error?: string }> {
-  const response = await fetchImpl(FX_API_URL)
-  if (!response.ok) {
-    return { updated: 0, error: `FX API responded with status ${response.status}` }
+  let data: FxApiResponse
+  try {
+    // Wrap the network call + JSON parse: a rejected fetch (DNS failure,
+    // timeout, connection reset) or malformed body must degrade to a graceful
+    // { updated: 0, error } — the same contract as an HTTP-error response —
+    // rather than propagating out and surfacing as an unhandled 500 from the
+    // cron route. (A DB upsert failure below is intentionally NOT swallowed:
+    // that's a real fault the cron should surface and retry on.)
+    const response = await fetchImpl(FX_API_URL)
+    if (!response.ok) {
+      return { updated: 0, error: `FX API responded with status ${response.status}` }
+    }
+    data = (await response.json()) as FxApiResponse
+  } catch (error) {
+    return { updated: 0, error: error instanceof Error ? error.message : 'FX API request failed' }
   }
 
-  const data = (await response.json()) as FxApiResponse
   if (data.result !== 'success') {
     return { updated: 0, error: `FX API returned result: ${data.result}` }
   }

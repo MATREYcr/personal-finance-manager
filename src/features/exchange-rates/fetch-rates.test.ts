@@ -28,13 +28,23 @@ describe('refreshExchangeRates', () => {
     })
   })
 
-  it('does not throw and updates nothing when the API call fails', async () => {
+  it('does not throw and updates nothing when the API returns an error status', async () => {
     const mockDb = { exchangeRate: { upsert: vi.fn() } } as any
     const mockFetch = vi.fn().mockResolvedValue({ ok: false })
 
     const result = await refreshExchangeRates(mockDb, mockFetch as unknown as typeof fetch)
 
     expect(result).toEqual({ updated: 0, error: expect.any(String) })
+    expect(mockDb.exchangeRate.upsert).not.toHaveBeenCalled()
+  })
+
+  it('does not throw and updates nothing when the fetch itself rejects', async () => {
+    const mockDb = { exchangeRate: { upsert: vi.fn() } } as any
+    const mockFetch = vi.fn().mockRejectedValue(new Error('ECONNRESET'))
+
+    const result = await refreshExchangeRates(mockDb, mockFetch as unknown as typeof fetch)
+
+    expect(result).toEqual({ updated: 0, error: 'ECONNRESET' })
     expect(mockDb.exchangeRate.upsert).not.toHaveBeenCalled()
   })
 })
