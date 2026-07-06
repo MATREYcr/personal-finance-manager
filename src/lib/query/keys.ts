@@ -7,6 +7,7 @@ export const queryKeys = {
     list: (filters: Record<string, string | undefined>, page: number) =>
       ['transactions', filters, page] as const,
   },
-  // Later plans append their own top-level key here, e.g.:
-  // recurringTransactions: { all: [...] },
+  recurringTransactions: {
+    all: ['recurring-transactions'] as const,
+  },
 }
