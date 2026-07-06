@@ -39,7 +39,6 @@
     "newCategory": "New category",
     "editCategory": "Edit category",
     "name": "Name",
-    "type": "Type",
     "typeExpense": "Expense",
     "typeIncome": "Income",
     "loading": "Loading categories…",

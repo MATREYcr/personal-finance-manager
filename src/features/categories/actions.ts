@@ -39,7 +39,7 @@ export async function updateCategory(input: z.infer<typeof updateCategoryInputSc
   return category
 }
 
-export async function deleteCategory(categoryId: string) {
+export async function deleteCategory(categoryId: string): Promise<{ blocked: boolean; message?: string }> {
   const session = await requireSession()
   const id = z.string().min(1).parse(categoryId)
 
@@ -49,10 +49,15 @@ export async function deleteCategory(categoryId: string) {
   ])
 
   if (transactionCount > 0 || recurringCount > 0) {
+    // Returned, not thrown: Next.js redacts thrown Server Action errors to a
+    // generic message in production (the docs recommend return values for
+    // exactly this "expected error" case), so throwing here would silently
+    // swallow this translated message before it ever reaches the client.
     const t = await getTranslations('Categories')
-    throw new Error(t('deleteError'))
+    return { blocked: true, message: t('deleteError') }
   }
 
   await db.category.delete({ where: { id, userId: session.user.id } })
   updateTag('categories')
+  return { blocked: false }
 }

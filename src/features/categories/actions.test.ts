@@ -27,19 +27,19 @@ describe('deleteCategory', () => {
     mockGetTranslations.mockResolvedValue((key: string) => key)
   })
 
-  it('throws and does not delete when transactions still reference the category', async () => {
+  it('returns blocked and does not delete when transactions still reference the category', async () => {
     mockDb.transaction.count.mockResolvedValue(2)
     mockDb.recurringTransaction.count.mockResolvedValue(0)
 
-    await expect(deleteCategory('cat-1')).rejects.toThrow('deleteError')
+    await expect(deleteCategory('cat-1')).resolves.toEqual({ blocked: true, message: 'deleteError' })
     expect(mockDb.category.delete).not.toHaveBeenCalled()
   })
 
-  it('throws and does not delete when recurring transactions still reference the category', async () => {
+  it('returns blocked and does not delete when recurring transactions still reference the category', async () => {
     mockDb.transaction.count.mockResolvedValue(0)
     mockDb.recurringTransaction.count.mockResolvedValue(1)
 
-    await expect(deleteCategory('cat-1')).rejects.toThrow('deleteError')
+    await expect(deleteCategory('cat-1')).resolves.toEqual({ blocked: true, message: 'deleteError' })
     expect(mockDb.category.delete).not.toHaveBeenCalled()
   })
 
@@ -47,7 +47,7 @@ describe('deleteCategory', () => {
     mockDb.transaction.count.mockResolvedValue(0)
     mockDb.recurringTransaction.count.mockResolvedValue(0)
 
-    await deleteCategory('cat-1')
+    await expect(deleteCategory('cat-1')).resolves.toEqual({ blocked: false })
 
     expect(mockDb.category.delete).toHaveBeenCalledWith({
       where: { id: 'cat-1', userId: 'user-1' },
