@@ -348,8 +348,9 @@ export async function updateTransaction(input: z.infer<typeof updateTransactionI
   return transaction
 }
 
-export async function deleteTransaction(id: string) {
+export async function deleteTransaction(rawId: string) {
   const session = await requireSession()
+  const id = z.string().min(1).parse(rawId)
   await db.transaction.delete({ where: { id, userId: session.user.id } })
   updateTag('transactions')
 }

@@ -240,8 +240,9 @@ export async function updateRecurringTransaction(input: z.infer<typeof updateRec
   return rule
 }
 
-export async function setRecurringTransactionActive(id: string, active: boolean) {
+export async function setRecurringTransactionActive(rawId: string, active: boolean) {
   const session = await requireSession()
+  const id = z.string().min(1).parse(rawId)
   const rule = await db.recurringTransaction.update({
     where: { id, userId: session.user.id },
     data: { active },
@@ -250,8 +251,9 @@ export async function setRecurringTransactionActive(id: string, active: boolean)
   return rule
 }
 
-export async function deleteRecurringTransaction(id: string) {
+export async function deleteRecurringTransaction(rawId: string) {
   const session = await requireSession()
+  const id = z.string().min(1).parse(rawId)
   await db.recurringTransaction.delete({ where: { id, userId: session.user.id } })
   updateTag('recurring-transactions')
 }
