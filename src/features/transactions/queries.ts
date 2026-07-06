@@ -38,5 +38,11 @@ export async function getTransactions(
     db.transaction.count({ where }),
   ])
 
-  return { transactions, totalCount, page, pageSize: take }
+  // Coerce Decimal -> number before returning: this is a `'use cache'` function,
+  // and the RSC serializer that caches its return value throws on Prisma Decimal
+  // instances ("Only plain objects can be passed... Decimal objects are not
+  // supported"). Every consumer already treats amount as a number.
+  const plainTransactions = transactions.map((tx) => ({ ...tx, amount: Number(tx.amount) }))
+
+  return { transactions: plainTransactions, totalCount, page, pageSize: take }
 }
