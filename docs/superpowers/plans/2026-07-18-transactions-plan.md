@@ -14,10 +14,12 @@
 
 - Package manager is npm.
 - Every Server Action validates input with Zod and scopes by the authenticated `userId`.
-- `queries.ts` uses `'use cache'` + `cacheTag('transactions')`; `actions.ts` mutations call `revalidateTag('transactions')` after a successful write.
+- `queries.ts` uses `'use cache'` + `cacheTag('transactions')`; `actions.ts` mutations call **`updateTag('transactions')`** (not `revalidateTag`) after a successful write — `updateTag` is Next.js 16's read-your-own-writes primitive (immediate cache expiry) and is only usable from Server Actions. Route Handlers (cron endpoints in the Recurring Transactions and Currency/FX/Dashboard plans) must keep using `revalidateTag`, since `updateTag` throws outside a Server Action.
 - A transaction's `categoryId` must be verified to belong to the current user before create/update — never trust a client-supplied id.
 - Do not set or expose `recurringId` anywhere in this plan — it stays null until the Recurring Transactions plan.
 - All routes live under `src/app/[locale]/...`. All user-facing text uses `next-intl` (`useTranslations` in Client Components) under this feature's own `Transactions` namespace — no hardcoded strings. All styling uses shadcn's theme-aware Tailwind tokens (never hardcoded colors).
+- This project's shadcn components (`Dialog`, `Sheet`, etc.) are built on `@base-ui/react`, not Radix — there is no `asChild` prop. To compose a trigger with a custom element, pass it via the `render` prop instead: `<DialogTrigger render={trigger} />` (self-closing; `DialogTrigger`'s own children, if any, would override `trigger`'s children, so leave it childless when `trigger` already carries its own content). `trigger`'s type must be `React.ReactElement`, not the wider `React.ReactNode` — `render` only accepts an element or a render function.
+- `next.config.ts` now has `cacheComponents: true` (enabled during Categories Task 3 for `'use cache'` queries). Every Server Component page that calls `getTranslations` or otherwise reads the request locale — not just this plan's `TransactionsPage` — must call `setRequestLocale(locale)` itself before doing so; the root `[locale]/layout.tsx`'s call is not sufficient on its own. Skipping this doesn't just warn — it fails `npm run build` outright with "Uncached data was accessed outside of `<Suspense>`".
 
 ## Prerequisites (from Foundation + Categories, already merged)
 
@@ -165,19 +167,25 @@ Expected: PASS (6 tests).
 
 - [ ] **Step 7: Write the failing test for the ownership check**
 
+`vi.mock()` factories are hoisted above top-level `const` declarations by
+Vitest, so any mock object a factory references must be created via
+`vi.hoisted()` — otherwise it throws "Cannot access before initialization".
+
 ```typescript
 // src/features/transactions/actions.test.ts
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-const mockRequireSession = vi.fn()
-vi.mock('@/lib/auth/session', () => ({ requireSession: () => mockRequireSession() }))
+const { mockRequireSession, mockDb } = vi.hoisted(() => ({
+  mockRequireSession: vi.fn(),
+  mockDb: {
+    transaction: { create: vi.fn(), update: vi.fn(), delete: vi.fn() },
+    category: { findFirst: vi.fn() },
+  },
+}))
 
-const mockDb = {
-  transaction: { create: vi.fn(), update: vi.fn(), delete: vi.fn() },
-  category: { findFirst: vi.fn() },
-}
+vi.mock('@/lib/auth/session', () => ({ requireSession: () => mockRequireSession() }))
 vi.mock('@/lib/db', () => ({ db: mockDb }))
-vi.mock('next/cache', () => ({ revalidateTag: vi.fn() }))
+vi.mock('next/cache', () => ({ updateTag: vi.fn() }))
 
 import { createTransaction } from './actions'
 
@@ -289,7 +297,7 @@ export async function getTransactions(
 // src/features/transactions/actions.ts
 'use server'
 import { z } from 'zod'
-import { revalidateTag } from 'next/cache'
+import { updateTag } from 'next/cache'
 import { db } from '@/lib/db'
 import { requireSession } from '@/lib/auth/session'
 
@@ -317,7 +325,7 @@ export async function createTransaction(input: z.infer<typeof transactionInputSc
     data: { userId: session.user.id, categoryId, type, amount, currency, date: new Date(date), note },
   })
 
-  revalidateTag('transactions')
+  updateTag('transactions')
   return transaction
 }
 
@@ -336,14 +344,14 @@ export async function updateTransaction(input: z.infer<typeof updateTransactionI
     data: { categoryId, type, amount, currency, date: new Date(date), note },
   })
 
-  revalidateTag('transactions')
+  updateTag('transactions')
   return transaction
 }
 
 export async function deleteTransaction(id: string) {
   const session = await requireSession()
   await db.transaction.delete({ where: { id, userId: session.user.id } })
-  revalidateTag('transactions')
+  updateTag('transactions')
 }
 ```
 
@@ -601,7 +609,7 @@ export function TransactionFormDialog({
   trigger,
 }: {
   transaction?: TransactionWithCategory
-  trigger: React.ReactNode
+  trigger: React.ReactElement
 }) {
   const t = useTranslations('Transactions')
   const tCategories = useTranslations('Categories')
@@ -630,7 +638,7 @@ export function TransactionFormDialog({
 
   return (
     <Dialog>
-      <DialogTrigger asChild>{trigger}</DialogTrigger>
+      <DialogTrigger render={trigger} />
       <DialogContent>
         <DialogHeader>
           <DialogTitle>{transaction ? t('editTransaction') : t('newTransaction')}</DialogTitle>
@@ -789,10 +797,19 @@ export function TransactionList() {
 
 ```typescript
 // src/app/[locale]/(dashboard)/transactions/page.tsx
-import { getTranslations } from 'next-intl/server'
+import { getTranslations, setRequestLocale } from 'next-intl/server'
 import { TransactionList } from '@/features/transactions/components/TransactionList'
 
-export default async function TransactionsPage() {
+export default async function TransactionsPage({
+  params,
+}: {
+  params: Promise<{ locale: string }>
+}) {
+  const { locale } = await params
+  // Required per-segment: the root layout's setRequestLocale isn't enough —
+  // without this, Cache Components treats getTranslations as accessing
+  // blocking runtime data and `npm run build` fails outright.
+  setRequestLocale(locale)
   const t = await getTranslations('Transactions')
   return (
     <div className="p-4 md:p-6">

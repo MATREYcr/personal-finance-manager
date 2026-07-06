@@ -18,6 +18,7 @@
 - The FX refresh cron and the recurring-transaction generation cron (from the Recurring Transactions plan) both write data outside of `actions.ts` — each must call the relevant `revalidateTag` itself. This plan's FX cron must call `revalidateTag('exchange-rates')` on a successful refresh.
 - `vercel.json` may already exist (created by the Recurring Transactions plan) — if so, append the FX cron entry to its existing `crons` array rather than overwriting the file.
 - All routes live under `src/app/[locale]/...`. All user-facing text uses `next-intl` (`useTranslations` in Client Components, `getTranslations` in Server Components) under this feature's own `Dashboard` and `Settings` namespaces — no hardcoded strings. All navigation (`useRouter`, `redirect`) imports from `@/i18n/navigation`, never `next/navigation`. All styling uses shadcn's theme-aware Tailwind tokens; where no semantic token exists (e.g. a positive/savings color), use an explicit `dark:` variant so it stays legible in both themes rather than hardcoding a single-theme color.
+- `next.config.ts` has `cacheComponents: true` (enabled during Categories Task 3 for `'use cache'` queries). Every Server Component page that calls `getTranslations`/`useTranslations`/`getMessages` — `SettingsPage` in this plan — must call `setRequestLocale(locale)` itself before doing so; the root `[locale]/layout.tsx`'s call is not sufficient on its own. Skipping this doesn't just warn — it fails `npm run build` outright with "Uncached data was accessed outside of `<Suspense>`". `DashboardPage` doesn't call any next-intl server function directly (it only uses the locale-aware `redirect`, which takes `locale` as an explicit argument, not an ambient one) and is inherently dynamic anyway (it reads `headers()` for the session), so it does not need this call — but if a getTranslations call is ever added to it, add `setRequestLocale` too.
 
 ## Prerequisites (from Foundation + Transactions, already merged)
 
@@ -329,10 +330,15 @@ git commit -m "feat(fx): add daily exchange rate refresh cron job"
 // src/features/settings/actions.test.ts
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-const mockRequireSession = vi.fn()
-vi.mock('@/lib/auth/session', () => ({ requireSession: () => mockRequireSession() }))
+// vi.mock factories are hoisted above top-level const declarations, so the
+// mock objects they reference must be created via vi.hoisted() to avoid a
+// "Cannot access before initialization" error.
+const { mockRequireSession, mockDb } = vi.hoisted(() => ({
+  mockRequireSession: vi.fn(),
+  mockDb: { user: { update: vi.fn() } },
+}))
 
-const mockDb = { user: { update: vi.fn() } }
+vi.mock('@/lib/auth/session', () => ({ requireSession: () => mockRequireSession() }))
 vi.mock('@/lib/db', () => ({ db: mockDb }))
 
 import { updateBaseCurrency } from './actions'
@@ -472,10 +478,19 @@ export function BaseCurrencyForm() {
 
 ```typescript
 // src/app/[locale]/(dashboard)/settings/page.tsx
-import { getTranslations } from 'next-intl/server'
+import { getTranslations, setRequestLocale } from 'next-intl/server'
 import { BaseCurrencyForm } from '@/features/settings/components/BaseCurrencyForm'
 
-export default async function SettingsPage() {
+export default async function SettingsPage({
+  params,
+}: {
+  params: Promise<{ locale: string }>
+}) {
+  const { locale } = await params
+  // Required per-segment: the root layout's setRequestLocale isn't enough —
+  // without this, Cache Components treats getTranslations as accessing
+  // blocking runtime data and `npm run build` fails outright.
+  setRequestLocale(locale)
   const t = await getTranslations('Settings')
   return (
     <div className="p-4 md:p-6">

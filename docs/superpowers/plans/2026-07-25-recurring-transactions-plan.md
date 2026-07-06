@@ -14,11 +14,13 @@
 
 - Package manager is npm.
 - Every Server Action validates input with Zod and scopes by the authenticated `userId`.
-- `queries.ts` uses `'use cache'` + `cacheTag('recurring-transactions')`; `actions.ts` mutations call `revalidateTag('recurring-transactions')` after a successful write.
+- `queries.ts` uses `'use cache'` + `cacheTag('recurring-transactions')`; `actions.ts` mutations call **`updateTag('recurring-transactions')`** (not `revalidateTag`) after a successful write — `updateTag` is Next.js 16's read-your-own-writes primitive (immediate cache expiry) and is only usable from Server Actions.
 - Editing a `RecurringTransaction` must never touch already-generated `Transaction` rows, and must never touch `nextRunDate` (only the generation cron advances that field).
-- The generation cron must invalidate the `'transactions'` and `'recurring-transactions'` cache tags itself (it writes via `db` directly, bypassing `actions.ts`, so the `revalidateTag` calls that `actions.ts` would normally make must happen in the cron route instead).
+- The generation cron (a Route Handler, not a Server Action) must invalidate the `'transactions'` and `'recurring-transactions'` cache tags itself using **`revalidateTag`**, not `updateTag` — `updateTag` throws when called outside a Server Action, so the cron route cannot use the same primitive `actions.ts` uses.
 - Per-rule generation (create `Transaction` + advance `nextRunDate`) must be atomic (`db.$transaction`) so a retry after partial failure never double-creates or skips.
 - All routes live under `src/app/[locale]/...`. All user-facing text uses `next-intl` (`useTranslations` in Client Components) under this feature's own `RecurringTransactions` namespace — no hardcoded strings. All styling uses shadcn's theme-aware Tailwind tokens (never hardcoded colors).
+- This project's shadcn components (`Dialog`, `Sheet`, etc.) are built on `@base-ui/react`, not Radix — there is no `asChild` prop. To compose a trigger with a custom element, pass it via the `render` prop instead: `<DialogTrigger render={trigger} />` (self-closing; `DialogTrigger`'s own children, if any, would override `trigger`'s children, so leave it childless when `trigger` already carries its own content). `trigger`'s type must be `React.ReactElement`, not the wider `React.ReactNode` — `render` only accepts an element or a render function.
+- `next.config.ts` now has `cacheComponents: true` (enabled during Categories Task 3 for `'use cache'` queries). Every Server Component page that calls `getTranslations` or otherwise reads the request locale — not just this plan's `RecurringTransactionsPage` — must call `setRequestLocale(locale)` itself before doing so; the root `[locale]/layout.tsx`'s call is not sufficient on its own. Skipping this doesn't just warn — it fails `npm run build` outright with "Uncached data was accessed outside of `<Suspense>`".
 
 ## Prerequisites (from Foundation + Categories + Transactions, already merged)
 
@@ -85,19 +87,25 @@ export type RecurringTransactionWithCategory = RecurringTransaction & { category
 
 - [ ] **Step 3: Write the failing test**
 
+`vi.mock()` factories are hoisted above top-level `const` declarations by
+Vitest, so any mock object a factory references must be created via
+`vi.hoisted()` — otherwise it throws "Cannot access before initialization".
+
 ```typescript
 // src/features/recurring-transactions/actions.test.ts
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-const mockRequireSession = vi.fn()
-vi.mock('@/lib/auth/session', () => ({ requireSession: () => mockRequireSession() }))
+const { mockRequireSession, mockDb } = vi.hoisted(() => ({
+  mockRequireSession: vi.fn(),
+  mockDb: {
+    recurringTransaction: { create: vi.fn(), update: vi.fn(), delete: vi.fn() },
+    category: { findFirst: vi.fn() },
+  },
+}))
 
-const mockDb = {
-  recurringTransaction: { create: vi.fn(), update: vi.fn(), delete: vi.fn() },
-  category: { findFirst: vi.fn() },
-}
+vi.mock('@/lib/auth/session', () => ({ requireSession: () => mockRequireSession() }))
 vi.mock('@/lib/db', () => ({ db: mockDb }))
-vi.mock('next/cache', () => ({ revalidateTag: vi.fn() }))
+vi.mock('next/cache', () => ({ updateTag: vi.fn() }))
 
 import { createRecurringTransaction } from './actions'
 
@@ -166,7 +174,7 @@ export async function getRecurringTransactions(userId: string) {
 // src/features/recurring-transactions/actions.ts
 'use server'
 import { z } from 'zod'
-import { revalidateTag } from 'next/cache'
+import { updateTag } from 'next/cache'
 import { db } from '@/lib/db'
 import { requireSession } from '@/lib/auth/session'
 
@@ -209,7 +217,7 @@ export async function createRecurringTransaction(input: z.infer<typeof recurring
     },
   })
 
-  revalidateTag('recurring-transactions')
+  updateTag('recurring-transactions')
   return rule
 }
 
@@ -228,7 +236,7 @@ export async function updateRecurringTransaction(input: z.infer<typeof updateRec
     data: { categoryId, type, amount, currency, frequency, note },
   })
 
-  revalidateTag('recurring-transactions')
+  updateTag('recurring-transactions')
   return rule
 }
 
@@ -238,14 +246,14 @@ export async function setRecurringTransactionActive(id: string, active: boolean)
     where: { id, userId: session.user.id },
     data: { active },
   })
-  revalidateTag('recurring-transactions')
+  updateTag('recurring-transactions')
   return rule
 }
 
 export async function deleteRecurringTransaction(id: string) {
   const session = await requireSession()
   await db.recurringTransaction.delete({ where: { id, userId: session.user.id } })
-  revalidateTag('recurring-transactions')
+  updateTag('recurring-transactions')
 }
 ```
 
@@ -431,7 +439,7 @@ export function RecurringTransactionFormDialog({
   trigger,
 }: {
   rule?: RecurringTransactionWithCategory
-  trigger: React.ReactNode
+  trigger: React.ReactElement
 }) {
   const t = useTranslations('RecurringTransactions')
   const tTransactions = useTranslations('Transactions')
@@ -462,7 +470,7 @@ export function RecurringTransactionFormDialog({
 
   return (
     <Dialog>
-      <DialogTrigger asChild>{trigger}</DialogTrigger>
+      <DialogTrigger render={trigger} />
       <DialogContent>
         <DialogHeader>
           <DialogTitle>{rule ? t('edit') : t('new')}</DialogTitle>
@@ -611,10 +619,19 @@ export function RecurringTransactionList() {
 
 ```typescript
 // src/app/[locale]/(dashboard)/recurring-transactions/page.tsx
-import { getTranslations } from 'next-intl/server'
+import { getTranslations, setRequestLocale } from 'next-intl/server'
 import { RecurringTransactionList } from '@/features/recurring-transactions/components/RecurringTransactionList'
 
-export default async function RecurringTransactionsPage() {
+export default async function RecurringTransactionsPage({
+  params,
+}: {
+  params: Promise<{ locale: string }>
+}) {
+  const { locale } = await params
+  // Required per-segment: the root layout's setRequestLocale isn't enough —
+  // without this, Cache Components treats getTranslations as accessing
+  // blocking runtime data and `npm run build` fails outright.
+  setRequestLocale(locale)
   const t = await getTranslations('RecurringTransactions')
   return (
     <div className="p-4 md:p-6">

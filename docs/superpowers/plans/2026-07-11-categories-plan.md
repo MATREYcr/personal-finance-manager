@@ -14,9 +14,10 @@
 
 - Package manager is npm.
 - Every Server Action validates input with Zod and scopes by the authenticated `userId` — never trust a client-supplied user id.
-- `queries.ts` uses `'use cache'` + `cacheTag('categories')`; `actions.ts` mutations call `revalidateTag('categories')` after a successful write.
+- `queries.ts` uses `'use cache'` + `cacheTag('categories')`; `actions.ts` mutations call **`updateTag('categories')`** (not `revalidateTag`) after a successful write — `updateTag` is Next.js 16's read-your-own-writes primitive, immediately expiring the cache instead of `revalidateTag`'s stale-while-revalidate behavior, and it's only usable from Server Actions (never from a Route Handler — cron endpoints in later plans must keep using `revalidateTag`).
 - Category deletion is blocked (friendly error) while any `Transaction` or `RecurringTransaction` references it — this plan can only test the empty-reference case for transactions/recurring counts (those tables have no real feature yet), but the guard logic and its test must be written now since Categories ships before Transactions.
 - All routes live under `src/app/[locale]/...`. All user-facing text uses `next-intl` (`useTranslations` in Client Components, `getTranslations` in Server Actions/Components) under this feature's own `Categories` namespace — no hardcoded strings. All styling uses shadcn's theme-aware Tailwind tokens (never hardcoded colors) so it works in both light and dark mode.
+- This project's shadcn components (`Dialog`, `Sheet`, etc.) are built on `@base-ui/react`, not Radix — there is no `asChild` prop. To compose a trigger with a custom element, pass it via the `render` prop instead: `<DialogTrigger render={trigger} />` (self-closing; `DialogTrigger`'s own children, if any, would override `trigger`'s children, so leave it childless when `trigger` already carries its own content). `trigger`'s type must be `React.ReactElement`, not the wider `React.ReactNode` — `render` only accepts an element or a render function.
 
 ## Prerequisites (from Foundation, already merged)
 
@@ -142,7 +143,18 @@ import { seedDefaultCategories } from '@/features/categories/seed'
     user: {
       create: {
         after: async (user) => {
-          await seedDefaultCategories(db, user.id)
+          // This hook runs after the user (and account) rows are already
+          // committed — an uncaught throw here would surface as a 500 on
+          // signup even though the account now exists, leaving the client
+          // with no way to retry (a repeat signup would just hit "email
+          // already in use"). Log and swallow instead: a user with zero
+          // seeded categories is recoverable (they can add their own), a
+          // signup that silently succeeded but reported failure is not.
+          try {
+            await seedDefaultCategories(db, user.id)
+          } catch (error) {
+            console.error(`Failed to seed default categories for user ${user.id}:`, error)
+          }
         },
       },
     },
@@ -198,23 +210,28 @@ export type { Category }
 
 - [ ] **Step 3: Write the failing test for the deletion guard**
 
+`vi.mock()` factories are hoisted above top-level `const` declarations by
+Vitest, so any mock object a factory references must be created via
+`vi.hoisted()` — otherwise it throws "Cannot access before initialization".
+
 ```typescript
 // src/features/categories/actions.test.ts
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-const mockRequireSession = vi.fn()
+const { mockRequireSession, mockGetTranslations, mockDb } = vi.hoisted(() => ({
+  mockRequireSession: vi.fn(),
+  mockGetTranslations: vi.fn(),
+  mockDb: {
+    category: { create: vi.fn(), update: vi.fn(), delete: vi.fn() },
+    transaction: { count: vi.fn() },
+    recurringTransaction: { count: vi.fn() },
+  },
+}))
+
 vi.mock('@/lib/auth/session', () => ({ requireSession: () => mockRequireSession() }))
-
-const mockGetTranslations = vi.fn()
 vi.mock('next-intl/server', () => ({ getTranslations: () => mockGetTranslations() }))
-
-const mockDb = {
-  category: { create: vi.fn(), update: vi.fn(), delete: vi.fn() },
-  transaction: { count: vi.fn() },
-  recurringTransaction: { count: vi.fn() },
-}
 vi.mock('@/lib/db', () => ({ db: mockDb }))
-vi.mock('next/cache', () => ({ revalidateTag: vi.fn() }))
+vi.mock('next/cache', () => ({ updateTag: vi.fn() }))
 
 import { deleteCategory } from './actions'
 
@@ -290,7 +307,7 @@ export async function getCategories(userId: string) {
 // src/features/categories/actions.ts
 'use server'
 import { z } from 'zod'
-import { revalidateTag } from 'next/cache'
+import { updateTag } from 'next/cache'
 import { getTranslations } from 'next-intl/server'
 import { db } from '@/lib/db'
 import { requireSession } from '@/lib/auth/session'
@@ -308,7 +325,7 @@ export async function createCategory(input: z.infer<typeof categoryInputSchema>)
     data: { userId: session.user.id, name, type },
   })
 
-  revalidateTag('categories')
+  updateTag('categories')
   return category
 }
 
@@ -325,7 +342,7 @@ export async function updateCategory(input: z.infer<typeof updateCategoryInputSc
     data: { name, type },
   })
 
-  revalidateTag('categories')
+  updateTag('categories')
   return category
 }
 
@@ -343,7 +360,7 @@ export async function deleteCategory(categoryId: string) {
   }
 
   await db.category.delete({ where: { id: categoryId, userId: session.user.id } })
-  revalidateTag('categories')
+  updateTag('categories')
 }
 ```
 
@@ -452,7 +469,6 @@ export function useCategoryMutations() {
     "newCategory": "Nueva categoría",
     "editCategory": "Editar categoría",
     "name": "Nombre",
-    "type": "Tipo",
     "typeExpense": "Gasto",
     "typeIncome": "Ingreso",
     "loading": "Cargando categorías…",
@@ -470,7 +486,6 @@ export function useCategoryMutations() {
     "newCategory": "New category",
     "editCategory": "Edit category",
     "name": "Name",
-    "type": "Type",
     "typeExpense": "Expense",
     "typeIncome": "Income",
     "loading": "Loading categories…",
@@ -506,7 +521,7 @@ const schema = z.object({
 })
 type FormValues = z.infer<typeof schema>
 
-export function CategoryFormDialog({ category, trigger }: { category?: Category; trigger: React.ReactNode }) {
+export function CategoryFormDialog({ category, trigger }: { category?: Category; trigger: React.ReactElement }) {
   const t = useTranslations('Categories')
   const tCommon = useTranslations('Common.actions')
   const { create, update } = useCategoryMutations()
@@ -525,7 +540,7 @@ export function CategoryFormDialog({ category, trigger }: { category?: Category;
 
   return (
     <Dialog>
-      <DialogTrigger asChild>{trigger}</DialogTrigger>
+      <DialogTrigger render={trigger} />
       <DialogContent>
         <DialogHeader>
           <DialogTitle>{category ? t('editCategory') : t('newCategory')}</DialogTitle>
