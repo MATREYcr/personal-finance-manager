@@ -65,5 +65,27 @@
     "previous": "Previous",
     "next": "Next",
     "pageInfo": "Page {page} of {totalPages}"
+  },
+  "RecurringTransactions": {
+    "title": "Recurring transactions",
+    "new": "New recurring transaction",
+    "edit": "Edit recurring transaction",
+    "loading": "Loading recurring transactions…",
+    "frequency": "Frequency",
+    "frequencyWeekly": "Weekly",
+    "frequencyMonthly": "Monthly",
+    "frequencyYearly": "Yearly",
+    "startDate": "Start date",
+    "columnCategory": "Category",
+    "columnType": "Type",
+    "columnAmount": "Amount",
+    "columnFrequency": "Frequency",
+    "columnNextRun": "Next run",
+    "columnStatus": "Status",
+    "columnActions": "Actions",
+    "statusActive": "Active",
+    "statusPaused": "Paused",
+    "pause": "Pause",
+    "resume": "Resume"
   }
 }

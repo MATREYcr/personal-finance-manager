@@ -65,5 +65,27 @@
     "previous": "Anterior",
     "next": "Siguiente",
     "pageInfo": "Página {page} de {totalPages}"
+  },
+  "RecurringTransactions": {
+    "title": "Transacciones recurrentes",
+    "new": "Nueva transacción recurrente",
+    "edit": "Editar transacción recurrente",
+    "loading": "Cargando transacciones recurrentes…",
+    "frequency": "Frecuencia",
+    "frequencyWeekly": "Semanal",
+    "frequencyMonthly": "Mensual",
+    "frequencyYearly": "Anual",
+    "startDate": "Fecha de inicio",
+    "columnCategory": "Categoría",
+    "columnType": "Tipo",
+    "columnAmount": "Monto",
+    "columnFrequency": "Frecuencia",
+    "columnNextRun": "Próxima fecha",
+    "columnStatus": "Estado",
+    "columnActions": "Acciones",
+    "statusActive": "Activa",
+    "statusPaused": "Pausada",
+    "pause": "Pausar",
+    "resume": "Reanudar"
   }
 }
