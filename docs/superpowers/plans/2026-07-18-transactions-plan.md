@@ -19,6 +19,7 @@
 - Do not set or expose `recurringId` anywhere in this plan — it stays null until the Recurring Transactions plan.
 - All routes live under `src/app/[locale]/...`. All user-facing text uses `next-intl` (`useTranslations` in Client Components) under this feature's own `Transactions` namespace — no hardcoded strings. All styling uses shadcn's theme-aware Tailwind tokens (never hardcoded colors).
 - This project's shadcn components (`Dialog`, `Sheet`, etc.) are built on `@base-ui/react`, not Radix — there is no `asChild` prop. To compose a trigger with a custom element, pass it via the `render` prop instead: `<DialogTrigger render={trigger} />` (self-closing; `DialogTrigger`'s own children, if any, would override `trigger`'s children, so leave it childless when `trigger` already carries its own content). `trigger`'s type must be `React.ReactElement`, not the wider `React.ReactNode` — `render` only accepts an element or a render function.
+- `next.config.ts` now has `cacheComponents: true` (enabled during Categories Task 3 for `'use cache'` queries). Every Server Component page that calls `getTranslations` or otherwise reads the request locale — not just this plan's `TransactionsPage` — must call `setRequestLocale(locale)` itself before doing so; the root `[locale]/layout.tsx`'s call is not sufficient on its own. Skipping this doesn't just warn — it fails `npm run build` outright with "Uncached data was accessed outside of `<Suspense>`".
 
 ## Prerequisites (from Foundation + Categories, already merged)
 
@@ -796,10 +797,19 @@ export function TransactionList() {
 
 ```typescript
 // src/app/[locale]/(dashboard)/transactions/page.tsx
-import { getTranslations } from 'next-intl/server'
+import { getTranslations, setRequestLocale } from 'next-intl/server'
 import { TransactionList } from '@/features/transactions/components/TransactionList'
 
-export default async function TransactionsPage() {
+export default async function TransactionsPage({
+  params,
+}: {
+  params: Promise<{ locale: string }>
+}) {
+  const { locale } = await params
+  // Required per-segment: the root layout's setRequestLocale isn't enough —
+  // without this, Cache Components treats getTranslations as accessing
+  // blocking runtime data and `npm run build` fails outright.
+  setRequestLocale(locale)
   const t = await getTranslations('Transactions')
   return (
     <div className="p-4 md:p-6">
