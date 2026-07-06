@@ -17,6 +17,7 @@
 - `queries.ts` uses `'use cache'` + `cacheTag('categories')`; `actions.ts` mutations call **`updateTag('categories')`** (not `revalidateTag`) after a successful write — `updateTag` is Next.js 16's read-your-own-writes primitive, immediately expiring the cache instead of `revalidateTag`'s stale-while-revalidate behavior, and it's only usable from Server Actions (never from a Route Handler — cron endpoints in later plans must keep using `revalidateTag`).
 - Category deletion is blocked (friendly error) while any `Transaction` or `RecurringTransaction` references it — this plan can only test the empty-reference case for transactions/recurring counts (those tables have no real feature yet), but the guard logic and its test must be written now since Categories ships before Transactions.
 - All routes live under `src/app/[locale]/...`. All user-facing text uses `next-intl` (`useTranslations` in Client Components, `getTranslations` in Server Actions/Components) under this feature's own `Categories` namespace — no hardcoded strings. All styling uses shadcn's theme-aware Tailwind tokens (never hardcoded colors) so it works in both light and dark mode.
+- This project's shadcn components (`Dialog`, `Sheet`, etc.) are built on `@base-ui/react`, not Radix — there is no `asChild` prop. To compose a trigger with a custom element, pass it via the `render` prop instead: `<DialogTrigger render={trigger} />` (self-closing; `DialogTrigger`'s own children, if any, would override `trigger`'s children, so leave it childless when `trigger` already carries its own content). `trigger`'s type must be `React.ReactElement`, not the wider `React.ReactNode` — `render` only accepts an element or a render function.
 
 ## Prerequisites (from Foundation, already merged)
 
@@ -522,7 +523,7 @@ const schema = z.object({
 })
 type FormValues = z.infer<typeof schema>
 
-export function CategoryFormDialog({ category, trigger }: { category?: Category; trigger: React.ReactNode }) {
+export function CategoryFormDialog({ category, trigger }: { category?: Category; trigger: React.ReactElement }) {
   const t = useTranslations('Categories')
   const tCommon = useTranslations('Common.actions')
   const { create, update } = useCategoryMutations()
@@ -541,7 +542,7 @@ export function CategoryFormDialog({ category, trigger }: { category?: Category;
 
   return (
     <Dialog>
-      <DialogTrigger asChild>{trigger}</DialogTrigger>
+      <DialogTrigger render={trigger} />
       <DialogContent>
         <DialogHeader>
           <DialogTitle>{category ? t('editCategory') : t('newCategory')}</DialogTitle>

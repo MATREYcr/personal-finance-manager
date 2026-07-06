@@ -18,6 +18,7 @@
 - A transaction's `categoryId` must be verified to belong to the current user before create/update — never trust a client-supplied id.
 - Do not set or expose `recurringId` anywhere in this plan — it stays null until the Recurring Transactions plan.
 - All routes live under `src/app/[locale]/...`. All user-facing text uses `next-intl` (`useTranslations` in Client Components) under this feature's own `Transactions` namespace — no hardcoded strings. All styling uses shadcn's theme-aware Tailwind tokens (never hardcoded colors).
+- This project's shadcn components (`Dialog`, `Sheet`, etc.) are built on `@base-ui/react`, not Radix — there is no `asChild` prop. To compose a trigger with a custom element, pass it via the `render` prop instead: `<DialogTrigger render={trigger} />` (self-closing; `DialogTrigger`'s own children, if any, would override `trigger`'s children, so leave it childless when `trigger` already carries its own content). `trigger`'s type must be `React.ReactElement`, not the wider `React.ReactNode` — `render` only accepts an element or a render function.
 
 ## Prerequisites (from Foundation + Categories, already merged)
 
@@ -607,7 +608,7 @@ export function TransactionFormDialog({
   trigger,
 }: {
   transaction?: TransactionWithCategory
-  trigger: React.ReactNode
+  trigger: React.ReactElement
 }) {
   const t = useTranslations('Transactions')
   const tCategories = useTranslations('Categories')
@@ -636,7 +637,7 @@ export function TransactionFormDialog({
 
   return (
     <Dialog>
-      <DialogTrigger asChild>{trigger}</DialogTrigger>
+      <DialogTrigger render={trigger} />
       <DialogContent>
         <DialogHeader>
           <DialogTitle>{transaction ? t('editTransaction') : t('newTransaction')}</DialogTitle>
