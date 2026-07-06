@@ -8,11 +8,23 @@ import { useSession } from '@/lib/auth/client'
 import { updateBaseCurrency } from '../actions'
 
 export function BaseCurrencyForm() {
+  // useSession() (better-auth, no cookieCache) is undefined on first render and
+  // resolves asynchronously. Gate the actual form behind a loaded session so its
+  // useState initializer captures the user's REAL baseCurrency — initializing
+  // from a still-undefined session would pin the input to 'USD' forever (the
+  // lazy initializer only runs once at mount) and silently overwrite a saved
+  // 'EUR' back to 'USD' on the next save.
+  const { data: session, isPending } = useSession()
+  if (isPending || !session) return null
+  const initialCurrency = (session.user as { baseCurrency?: string }).baseCurrency ?? 'USD'
+  return <BaseCurrencyFormFields initialCurrency={initialCurrency} />
+}
+
+function BaseCurrencyFormFields({ initialCurrency }: { initialCurrency: string }) {
   const t = useTranslations('Settings')
   const tCommon = useTranslations('Common.actions')
-  const { data: session } = useSession()
   const router = useRouter()
-  const [currency, setCurrency] = useState((session?.user as { baseCurrency?: string })?.baseCurrency ?? 'USD')
+  const [currency, setCurrency] = useState(initialCurrency)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
 
