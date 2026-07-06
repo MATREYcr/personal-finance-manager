@@ -262,9 +262,15 @@ export async function updateRecurringTransaction(input: z.infer<typeof updateRec
   return toPlainRule(rule)
 }
 
-export async function setRecurringTransactionActive(rawId: string, active: boolean) {
+const setActiveInputSchema = z.object({ id: z.string().min(1), active: z.boolean() })
+
+export async function setRecurringTransactionActive(rawId: string, rawActive: boolean) {
   const session = await requireSession()
-  const id = z.string().min(1).parse(rawId)
+  // Validate BOTH args — a Server Action is an addressable HTTP endpoint, so a
+  // caller bypassing the TS layer could send a non-boolean `active` straight
+  // into Prisma. The plan's "every Server Action Zod-validates input" applies
+  // to `active`, not just the id.
+  const { id, active } = setActiveInputSchema.parse({ id: rawId, active: rawActive })
   const rule = await db.recurringTransaction.update({
     where: { id, userId: session.user.id },
     data: { active },
@@ -656,7 +662,7 @@ export function RecurringTransactionList() {
                 <TableCell>
                   <Badge variant={rule.active ? 'default' : 'secondary'} className="gap-1.5">
                     <span
-                      className={`h-1.5 w-1.5 rounded-full ${rule.active ? 'bg-[var(--positive)]' : 'bg-muted-foreground'}`}
+                      className={`h-1.5 w-1.5 rounded-full ${rule.active ? 'bg-(--positive)' : 'bg-muted-foreground'}`}
                     />
                     {rule.active ? t('statusActive') : t('statusPaused')}
                   </Badge>
@@ -683,7 +689,7 @@ export function RecurringTransactionList() {
                     <Button
                       size="icon"
                       aria-label={t('resume')}
-                      className="bg-[var(--positive)] text-white hover:opacity-90"
+                      className="bg-(--positive) text-white hover:opacity-90"
                       onClick={() => toggleActive.mutate({ id: rule.id, active: true })}
                     >
                       <Play className="h-4 w-4" />

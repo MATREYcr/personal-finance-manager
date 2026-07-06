@@ -77,9 +77,11 @@ export async function updateRecurringTransaction(input: z.infer<typeof updateRec
   return toPlainRule(rule)
 }
 
-export async function setRecurringTransactionActive(rawId: string, active: boolean) {
+const setActiveInputSchema = z.object({ id: z.string().min(1), active: z.boolean() })
+
+export async function setRecurringTransactionActive(rawId: string, rawActive: boolean) {
   const session = await requireSession()
-  const id = z.string().min(1).parse(rawId)
+  const { id, active } = setActiveInputSchema.parse({ id: rawId, active: rawActive })
   const rule = await db.recurringTransaction.update({
     where: { id, userId: session.user.id },
     data: { active },
