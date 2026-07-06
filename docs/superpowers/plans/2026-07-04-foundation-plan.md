@@ -49,6 +49,7 @@ personal-finance-manager/
 │   │   └── query/{client.tsx,keys.ts}
 │   └── middleware.ts
 ├── next.config.ts                            ← wrapped with next-intl plugin
+├── prisma.config.ts                          ← Prisma 7: datasource URLs live here, not in schema.prisma
 ├── vercel.json                               ← created here empty-ish, appended to by later cron-adding plans
 ├── vitest.config.ts
 ├── .env.example
@@ -233,16 +234,31 @@ git commit -m "feat(scaffold): initialize Next.js app with Tailwind, shadcn/ui, 
 
 **Files:**
 - Create: `prisma/schema.prisma`
+- Create: `prisma.config.ts`
 - Create: `src/lib/db/index.ts`
 - Create: `.env.example`
 
 **Interfaces:**
 - Produces: `db` singleton at `@/lib/db`, used by every later feature.
 
+**Prisma version note:** as of Prisma 7, datasource URLs no longer live in
+`schema.prisma` and Prisma's CLI no longer auto-loads `.env` files —
+connection strings are configured in a separate `prisma.config.ts`, which
+must explicitly `import "dotenv/config"` to read `process.env` at all.
+`npx prisma init` (Step 1) scaffolds this automatically in current
+versions; if it doesn't (an older Prisma got resolved instead), follow
+Step 2 below by hand. Either way, **`dotenv` must be an installed
+devDependency** — `prisma.config.ts`'s generated `import "dotenv/config"`
+silently has nothing to import otherwise, and every Prisma CLI command
+(`migrate`, `studio`, `validate`) breaks the moment it runs. Verify with
+`npx prisma validate` before moving on — it should print "The schema ...
+is valid," not a missing-module error.
+
 - [ ] **Step 1: Install Prisma**
 
 ```bash
 npm install prisma @prisma/client
+npm install -D dotenv
 npx prisma init --datasource-provider postgresql
 ```
 
@@ -255,11 +271,31 @@ generator client {
 }
 
 datasource db {
-  provider  = "postgresql"
-  url       = env("DATABASE_URL")
-  directUrl = env("DIRECT_URL")
+  provider = "postgresql"
 }
 ```
+
+```typescript
+// prisma.config.ts
+import 'dotenv/config'
+import { defineConfig } from 'prisma/config'
+
+export default defineConfig({
+  schema: 'prisma/schema.prisma',
+  migrations: {
+    path: 'prisma/migrations',
+  },
+  datasource: {
+    url: process.env.DATABASE_URL,
+    directUrl: process.env.DIRECT_URL,
+  },
+})
+```
+
+Run `npx prisma validate` and confirm it prints "The schema ... is valid"
+before continuing — this catches a missing `dotenv` install immediately
+rather than surfacing as a confusing failure in a later task's migration
+step.
 
 - [ ] **Step 3: Create the Prisma singleton**
 
