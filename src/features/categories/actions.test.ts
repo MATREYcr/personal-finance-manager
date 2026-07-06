@@ -35,6 +35,14 @@ describe('deleteCategory', () => {
     expect(mockDb.category.delete).not.toHaveBeenCalled()
   })
 
+  it('throws and does not delete when recurring transactions still reference the category', async () => {
+    mockDb.transaction.count.mockResolvedValue(0)
+    mockDb.recurringTransaction.count.mockResolvedValue(1)
+
+    await expect(deleteCategory('cat-1')).rejects.toThrow('deleteError')
+    expect(mockDb.category.delete).not.toHaveBeenCalled()
+  })
+
   it('deletes the category when nothing references it', async () => {
     mockDb.transaction.count.mockResolvedValue(0)
     mockDb.recurringTransaction.count.mockResolvedValue(0)

@@ -41,10 +41,11 @@ export async function updateCategory(input: z.infer<typeof updateCategoryInputSc
 
 export async function deleteCategory(categoryId: string) {
   const session = await requireSession()
+  const id = z.string().min(1).parse(categoryId)
 
   const [transactionCount, recurringCount] = await Promise.all([
-    db.transaction.count({ where: { categoryId, userId: session.user.id } }),
-    db.recurringTransaction.count({ where: { categoryId, userId: session.user.id } }),
+    db.transaction.count({ where: { categoryId: id, userId: session.user.id } }),
+    db.recurringTransaction.count({ where: { categoryId: id, userId: session.user.id } }),
   ])
 
   if (transactionCount > 0 || recurringCount > 0) {
@@ -52,6 +53,6 @@ export async function deleteCategory(categoryId: string) {
     throw new Error(t('deleteError'))
   }
 
-  await db.category.delete({ where: { id: categoryId, userId: session.user.id } })
+  await db.category.delete({ where: { id, userId: session.user.id } })
   updateTag('categories')
 }
