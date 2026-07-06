@@ -17,7 +17,7 @@ model User {
   image                 String?
   createdAt             DateTime               @default(now())
   updatedAt             DateTime               @updatedAt
-  baseCurrency          String?                @default("USD")
+  baseCurrency          String                 @default("USD")
   sessions              Session[]
   accounts              Account[]
   categories            Category[]

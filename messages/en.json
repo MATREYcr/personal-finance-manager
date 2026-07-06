@@ -2,6 +2,7 @@
   "Common": {
     "appName": "Personal Finance Manager",
     "loading": "Loading…",
+    "toggleTheme": "Toggle theme",
     "nav": {
       "dashboard": "Dashboard",
       "transactions": "Transactions",

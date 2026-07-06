@@ -2,6 +2,7 @@
   "Common": {
     "appName": "Gestor de Finanzas Personales",
     "loading": "Cargando…",
+    "toggleTheme": "Cambiar tema",
     "nav": {
       "dashboard": "Panel",
       "transactions": "Transacciones",

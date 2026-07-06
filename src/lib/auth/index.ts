@@ -13,7 +13,7 @@ export const auth = betterAuth({
     additionalFields: {
       baseCurrency: {
         type: 'string',
-        required: false,
+        required: true,
         defaultValue: 'USD',
         input: false,
       },

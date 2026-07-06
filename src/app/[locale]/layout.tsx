@@ -8,7 +8,11 @@ import { ThemeProvider } from '@/components/theme-provider'
 import { QueryProvider } from '@/lib/query/client'
 import '../globals.css'
 
-const geist = Geist({ subsets: ['latin'], weight: ['400', '500', '600', '700', '800'] })
+const geist = Geist({
+  subsets: ['latin'],
+  weight: ['400', '500', '600', '700', '800'],
+  variable: '--font-geist',
+})
 
 export function generateStaticParams() {
   return routing.locales.map((locale) => ({ locale }))
@@ -37,7 +41,7 @@ export default async function LocaleLayout({
 
   return (
     <html lang={locale} suppressHydrationWarning>
-      <body className={geist.className}>
+      <body className={`${geist.className} ${geist.variable}`}>
         <NextIntlClientProvider>
           <ThemeProvider>
             <QueryProvider>{children}</QueryProvider>
