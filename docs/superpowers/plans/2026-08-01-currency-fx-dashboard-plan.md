@@ -444,7 +444,6 @@ Expected: PASS (2 tests).
 
 - [ ] **Step 6: Settings form**
 
-```typescript
 Shows a brief inline "Saved" confirmation next to the button after a
 successful save, per the mockup's `Settings.jsx`, instead of the button
 just returning to its resting state.
@@ -492,7 +491,7 @@ export function BaseCurrencyForm() {
       <Input value={currency} maxLength={3} onChange={(e) => setCurrency(e.target.value.toUpperCase())} />
       <div className="flex items-center gap-3">
         <Button type="submit" disabled={saving}>{tCommon('save')}</Button>
-        {saved && <span className="text-sm font-medium text-[var(--positive)]">{t('saved')}</span>}
+        {saved && <span className="text-sm font-medium text-(--positive)">{t('saved')}</span>}
       </div>
     </form>
   )
@@ -838,7 +837,7 @@ export function SummaryCards({ summary, baseCurrency }: { summary: DashboardSumm
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
       <Card>
         <CardHeader><CardTitle>{t('income')}</CardTitle></CardHeader>
-        <CardContent className="tabular-nums text-2xl font-semibold text-[var(--positive)]">
+        <CardContent className="tabular-nums text-2xl font-semibold text-(--positive)">
           {summary.income.toFixed(2)} {baseCurrency}
         </CardContent>
       </Card>
@@ -853,7 +852,7 @@ export function SummaryCards({ summary, baseCurrency }: { summary: DashboardSumm
         <CardHeader><CardTitle>{t('savings')}</CardTitle></CardHeader>
         <CardContent
           className={`tabular-nums text-2xl font-semibold ${
-            summary.savings >= 0 ? 'text-[var(--positive)]' : 'text-destructive'
+            summary.savings >= 0 ? 'text-(--positive)' : 'text-destructive'
           }`}
         >
           {summary.savings.toFixed(2)} {baseCurrency}
