@@ -22,6 +22,9 @@
 - This project's shadcn components (`Dialog`, `Sheet`, etc.) are built on `@base-ui/react`, not Radix — there is no `asChild` prop. To compose a trigger with a custom element, pass it via the `render` prop instead: `<DialogTrigger render={trigger} />` (self-closing; `DialogTrigger`'s own children, if any, would override `trigger`'s children, so leave it childless when `trigger` already carries its own content). `trigger`'s type must be `React.ReactElement`, not the wider `React.ReactNode` — `render` only accepts an element or a render function.
 - `next.config.ts` now has `cacheComponents: true` (enabled during Categories Task 3 for `'use cache'` queries). Every Server Component page that calls `getTranslations` or otherwise reads the request locale — not just this plan's `RecurringTransactionsPage` — must call `setRequestLocale(locale)` itself before doing so; the root `[locale]/layout.tsx`'s call is not sufficient on its own. Skipping this doesn't just warn — it fails `npm run build` outright with "Uncached data was accessed outside of `<Suspense>`".
 - base-ui's `<SelectValue>` renders the raw `value` by default (confirmed in Base UI's own docs), not the corresponding `SelectItem`'s label — a bare `<SelectValue />` on an enum select shows the literal enum string, and on a category-id select shows the raw id itself. Always pass a children render-callback that maps the value to the correct label (translated for enums, looked up by id for categories), as this plan's code samples already do.
+- A Server Action's return value is serialized to the client via React's Flight protocol, which only supports plain objects — a Prisma record's `amount` is a `Decimal` class instance and throws "Only plain objects can be passed to Client Components... Decimal objects are not supported" the instant the mutation resolves in the browser (it happens on serialization, whether or not the client reads the value). Any action returning a `RecurringTransaction`/`Transaction` record must coerce `amount` to a plain `number` first (see `toPlainRule` in this plan's `actions.ts`). This bit the Transactions plan and was fixed there the same way.
+- Client Components must not evaluate `new Date()` (or any current-time read) at render time — Cache Components' `next-prerender-current-time-client` check fails `npm run build` outright. For a "new" form's default date, leave it blank in `defaultValues` and fill it in only inside the dialog-open handler (client-side, post-interaction), as this plan's `RecurringTransactionFormDialog` does.
+- Selects whose value is driven by `form.reset()` must be controlled (`value={form.watch(field)}`), not uncontrolled (`defaultValue={form.getValues(field)}`) — an uncontrolled Select fed a fresh `defaultValue` after mount logs Base UI's "changing the default value state of an uncontrolled Select after being initialized" warning. Same pattern as Transactions' form.
 
 ## Prerequisites (from Foundation + Categories + Transactions, already merged)
 
@@ -118,9 +121,13 @@ describe('createRecurringTransaction', () => {
   })
 
   it('sets nextRunDate to the provided start date', async () => {
-    mockDb.recurringTransaction.create.mockResolvedValue({ id: 'rec-1' })
+    // Prisma resolves `amount` as a Decimal instance; mock a Decimal-like value
+    // (numeric valueOf/toString) so the assertion below also proves the
+    // action coerces it to a plain number before returning (see toPlainRule).
+    const decimalLike = { valueOf: () => 3000, toString: () => '3000' }
+    mockDb.recurringTransaction.create.mockResolvedValue({ id: 'rec-1', amount: decimalLike })
 
-    await createRecurringTransaction({
+    const result = await createRecurringTransaction({
       categoryId: 'cat-1',
       type: 'INCOME',
       amount: 3000,
@@ -129,6 +136,9 @@ describe('createRecurringTransaction', () => {
       startDate: '2026-08-01',
     })
 
+    // The Decimal-like amount must have been coerced to a primitive number.
+    expect(result).toEqual({ id: 'rec-1', amount: 3000 })
+    expect(typeof result.amount).toBe('number')
     expect(mockDb.recurringTransaction.create).toHaveBeenCalledWith({
       data: {
         userId: 'user-1',
@@ -194,6 +204,17 @@ async function assertOwnsCategory(userId: string, categoryId: string) {
   if (!category) throw new Error('That category does not exist for this user')
 }
 
+// Server Actions serialize their return value to send back to the client
+// (React's Flight protocol), which only supports plain objects — Prisma's
+// `amount` field comes back as a `Decimal` class instance, and passing that
+// straight through throws "Only plain objects can be passed to Client
+// Components from Server Components. Decimal objects are not supported." the
+// moment a mutation resolves in the browser. Coerce it to a plain number.
+// Same fix as Transactions' actions.ts.
+function toPlainRule<T extends { amount: unknown }>(rule: T) {
+  return { ...rule, amount: Number(rule.amount) }
+}
+
 // Note: the category-ownership error below is a defensive/should-never-happen
 // case (the UI only ever offers the current user's own categories in the
 // select), not a user-facing validation message, so it is intentionally not
@@ -219,7 +240,7 @@ export async function createRecurringTransaction(input: z.infer<typeof recurring
   })
 
   updateTag('recurring-transactions')
-  return rule
+  return toPlainRule(rule)
 }
 
 const updateRecurringInputSchema = recurringInputSchema.extend({ id: z.string().min(1) })
@@ -238,7 +259,7 @@ export async function updateRecurringTransaction(input: z.infer<typeof updateRec
   })
 
   updateTag('recurring-transactions')
-  return rule
+  return toPlainRule(rule)
 }
 
 export async function setRecurringTransactionActive(rawId: string, active: boolean) {
@@ -249,7 +270,7 @@ export async function setRecurringTransactionActive(rawId: string, active: boole
     data: { active },
   })
   updateTag('recurring-transactions')
-  return rule
+  return toPlainRule(rule)
 }
 
 export async function deleteRecurringTransaction(rawId: string) {
@@ -436,7 +457,13 @@ const schema = z.object({
   startDate: z.string().min(1, 'Required'),
   note: z.string().max(280).optional(),
 })
-type FormValues = z.infer<typeof schema>
+// z.coerce.number() has a different input type (unknown, since it accepts
+// anything coercible) than output type (number, post-coercion) — split the
+// two so useForm's default values (input) and submit handler (output) each
+// get the type they actually deal with. Same pattern as Transactions'
+// TransactionFormDialog.
+type FormValues = z.input<typeof schema>
+type FormOutput = z.output<typeof schema>
 
 function defaultValuesFor(rule?: RecurringTransactionWithCategory): FormValues {
   return {
@@ -445,7 +472,14 @@ function defaultValuesFor(rule?: RecurringTransactionWithCategory): FormValues {
     amount: rule ? Number(rule.amount) : 0,
     currency: rule?.currency ?? 'USD',
     frequency: rule?.frequency ?? 'MONTHLY',
-    startDate: rule ? rule.nextRunDate.toString().slice(0, 10) : new Date().toISOString().slice(0, 10),
+    // Left blank for "new" here (rather than `new Date()`) since this runs on
+    // every render, including the initial prerender of this Client Component
+    // before the dialog is ever opened — evaluating the current time there
+    // trips Cache Components' next-prerender-current-time-client check and
+    // fails `next build`. Today's date is filled in instead in handleOpenChange,
+    // which only runs client-side in response to the user opening the dialog.
+    // Same fix as Transactions' TransactionFormDialog.
+    startDate: rule ? rule.nextRunDate.toString().slice(0, 10) : '',
     note: rule?.note ?? '',
   }
 }
@@ -464,7 +498,7 @@ export function RecurringTransactionFormDialog({
   const { data: categories } = useCategories()
   const { create, update } = useRecurringTransactionMutations()
   const [open, setOpen] = useState(false)
-  const form = useForm<FormValues>({
+  const form = useForm<FormValues, unknown, FormOutput>({
     resolver: zodResolver(schema),
     defaultValues: defaultValuesFor(rule),
   })
@@ -473,13 +507,18 @@ export function RecurringTransactionFormDialog({
     // Re-sync the form to this rule's current values (or a blank slate for
     // "new") every time the dialog opens — react-hook-form's defaultValues is
     // only read once at mount, so without this a persistent row instance
-    // would keep showing whatever it first opened with. Same fix as
+    // would keep showing whatever it first opened with. For a new rule, also
+    // fill in today's startDate here (see defaultValuesFor) since this only
+    // runs client-side, after the user opens the dialog. Same fix as
     // Categories' CategoryFormDialog and Transactions' TransactionFormDialog.
-    if (next) form.reset(defaultValuesFor(rule))
+    if (next) {
+      const values = defaultValuesFor(rule)
+      form.reset(rule ? values : { ...values, startDate: new Date().toISOString().slice(0, 10) })
+    }
     setOpen(next)
   }
 
-  async function onSubmit(values: FormValues) {
+  async function onSubmit(values: FormOutput) {
     if (rule) {
       await update.mutateAsync({ id: rule.id, ...values })
     } else {
@@ -496,7 +535,13 @@ export function RecurringTransactionFormDialog({
           <DialogTitle>{rule ? t('edit') : t('new')}</DialogTitle>
         </DialogHeader>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-          <Select defaultValue={form.getValues('type')} onValueChange={(v) => form.setValue('type', v as 'EXPENSE' | 'INCOME')}>
+          {/* Controlled (value, not defaultValue) on purpose: form.reset() (see
+              handleOpenChange) changes each field's value after mount, and an
+              uncontrolled Select fed a fresh defaultValue on every render logs
+              Base UI's "changing the default value state of an uncontrolled
+              Select after being initialized" warning. Same fix as Transactions'
+              TransactionFormDialog. */}
+          <Select value={form.watch('type')} onValueChange={(v) => form.setValue('type', v as 'EXPENSE' | 'INCOME')}>
             <SelectTrigger>
               {/* base-ui's SelectValue renders the raw value by default — a
                   children render-callback is required to map it to a
@@ -510,7 +555,7 @@ export function RecurringTransactionFormDialog({
               <SelectItem value="INCOME">{tCategories('typeIncome')}</SelectItem>
             </SelectContent>
           </Select>
-          <Select defaultValue={form.getValues('categoryId')} onValueChange={(v) => form.setValue('categoryId', v)}>
+          <Select value={form.watch('categoryId')} onValueChange={(v) => form.setValue('categoryId', v ?? '')}>
             <SelectTrigger>
               {/* Same default-raw-value issue as the type select above, but
                   here the raw value is a category id — without this callback
@@ -529,7 +574,7 @@ export function RecurringTransactionFormDialog({
           </Select>
           <Input type="number" step="0.01" placeholder={tTransactions('amount')} {...form.register('amount')} />
           <Input placeholder={tTransactions('currency')} maxLength={3} {...form.register('currency')} />
-          <Select defaultValue={form.getValues('frequency')} onValueChange={(v) => form.setValue('frequency', v as 'WEEKLY' | 'MONTHLY' | 'YEARLY')}>
+          <Select value={form.watch('frequency')} onValueChange={(v) => form.setValue('frequency', v as 'WEEKLY' | 'MONTHLY' | 'YEARLY')}>
             <SelectTrigger>
               {/* Same default-raw-value issue again, for the frequency enum. */}
               <SelectValue>
