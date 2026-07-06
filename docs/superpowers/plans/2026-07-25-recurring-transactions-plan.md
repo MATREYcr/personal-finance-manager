@@ -16,7 +16,7 @@
 - Every Server Action validates input with Zod and scopes by the authenticated `userId`.
 - `queries.ts` uses `'use cache'` + `cacheTag('recurring-transactions')`; `actions.ts` mutations call **`updateTag('recurring-transactions')`** (not `revalidateTag`) after a successful write — `updateTag` is Next.js 16's read-your-own-writes primitive (immediate cache expiry) and is only usable from Server Actions.
 - Editing a `RecurringTransaction` must never touch already-generated `Transaction` rows, and must never touch `nextRunDate` (only the generation cron advances that field).
-- The generation cron (a Route Handler, not a Server Action) must invalidate the `'transactions'` and `'recurring-transactions'` cache tags itself using **`revalidateTag`**, not `updateTag` — `updateTag` throws when called outside a Server Action, so the cron route cannot use the same primitive `actions.ts` uses.
+- The generation cron (a Route Handler, not a Server Action) must invalidate the `'transactions'` and `'recurring-transactions'` cache tags itself using **`revalidateTag`**, not `updateTag` — `updateTag` throws when called outside a Server Action, so the cron route cannot use the same primitive `actions.ts` uses. In Next 16 `revalidateTag` requires a second argument (the single-arg form is deprecated and type-errors); for an external cron trigger that needs the next request to see fresh data immediately, pass **`{ expire: 0 }`** (`revalidateTag('transactions', { expire: 0 })`) — not `'max'`, which gives stale-while-revalidate.
 - Per-rule generation (create `Transaction` + advance `nextRunDate`) must be atomic (`db.$transaction`) so a retry after partial failure never double-creates or skips.
 - All routes live under `src/app/[locale]/...`. All user-facing text uses `next-intl` (`useTranslations` in Client Components) under this feature's own `RecurringTransactions` namespace — no hardcoded strings. All styling uses shadcn's theme-aware Tailwind tokens (never hardcoded colors).
 - This project's shadcn components (`Dialog`, `Sheet`, etc.) are built on `@base-ui/react`, not Radix — there is no `asChild` prop. To compose a trigger with a custom element, pass it via the `render` prop instead: `<DialogTrigger render={trigger} />` (self-closing; `DialogTrigger`'s own children, if any, would override `trigger`'s children, so leave it childless when `trigger` already carries its own content). `trigger`'s type must be `React.ReactElement`, not the wider `React.ReactNode` — `render` only accepts an element or a render function.
@@ -262,9 +262,15 @@ export async function updateRecurringTransaction(input: z.infer<typeof updateRec
   return toPlainRule(rule)
 }
 
-export async function setRecurringTransactionActive(rawId: string, active: boolean) {
+const setActiveInputSchema = z.object({ id: z.string().min(1), active: z.boolean() })
+
+export async function setRecurringTransactionActive(rawId: string, rawActive: boolean) {
   const session = await requireSession()
-  const id = z.string().min(1).parse(rawId)
+  // Validate BOTH args — a Server Action is an addressable HTTP endpoint, so a
+  // caller bypassing the TS layer could send a non-boolean `active` straight
+  // into Prisma. The plan's "every Server Action Zod-validates input" applies
+  // to `active`, not just the id.
+  const { id, active } = setActiveInputSchema.parse({ id: rawId, active: rawActive })
   const rule = await db.recurringTransaction.update({
     where: { id, userId: session.user.id },
     data: { active },
@@ -611,6 +617,7 @@ import { Pencil, Trash2, Pause, Play } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 import { useRecurringTransactions } from '../hooks/useRecurringTransactions'
 import { useRecurringTransactionMutations } from '../hooks/useRecurringTransactionMutations'
 import { RecurringTransactionFormDialog } from './RecurringTransactionFormDialog'
@@ -656,7 +663,7 @@ export function RecurringTransactionList() {
                 <TableCell>
                   <Badge variant={rule.active ? 'default' : 'secondary'} className="gap-1.5">
                     <span
-                      className={`h-1.5 w-1.5 rounded-full ${rule.active ? 'bg-[var(--positive)]' : 'bg-muted-foreground'}`}
+                      className={`h-1.5 w-1.5 rounded-full ${rule.active ? 'bg-(--positive)' : 'bg-muted-foreground'}`}
                     />
                     {rule.active ? t('statusActive') : t('statusPaused')}
                   </Badge>
@@ -675,6 +682,7 @@ export function RecurringTransactionList() {
                       variant="secondary"
                       size="icon"
                       aria-label={t('pause')}
+                      disabled={toggleActive.isPending}
                       onClick={() => toggleActive.mutate({ id: rule.id, active: false })}
                     >
                       <Pause className="h-4 w-4" />
@@ -683,13 +691,20 @@ export function RecurringTransactionList() {
                     <Button
                       size="icon"
                       aria-label={t('resume')}
-                      className="bg-[var(--positive)] text-white hover:opacity-90"
+                      className="bg-(--positive) text-white hover:opacity-90"
+                      disabled={toggleActive.isPending}
                       onClick={() => toggleActive.mutate({ id: rule.id, active: true })}
                     >
                       <Play className="h-4 w-4" />
                     </Button>
                   )}
-                  <Button variant="destructive" size="icon" aria-label={tCommon('delete')} onClick={() => remove.mutate(rule.id)}>
+                  <Button
+                    variant="destructive"
+                    size="icon"
+                    aria-label={tCommon('delete')}
+                    disabled={remove.isPending}
+                    onClick={() => remove.mutate(rule.id)}
+                  >
                     <Trash2 className="h-4 w-4" />
                   </Button>
                 </TableCell>
@@ -698,6 +713,16 @@ export function RecurringTransactionList() {
           </TableBody>
         </Table>
       </div>
+      {/* Surface mutation failures — a silently-swallowed pause/resume is
+          especially bad here: the user would believe a rule is paused when
+          it isn't, and the generation cron would keep running it. */}
+      {(toggleActive.isError || remove.isError) && (
+        <Alert variant="destructive">
+          <AlertDescription>
+            {((toggleActive.error ?? remove.error) as Error)?.message}
+          </AlertDescription>
+        </Alert>
+      )}
     </div>
   )
 }
@@ -929,8 +954,14 @@ export async function GET(request: NextRequest) {
   if (result.generated > 0) {
     // This path creates Transaction rows and advances nextRunDate outside of
     // actions.ts, so it must invalidate the same tags actions.ts would have.
-    revalidateTag('transactions')
-    revalidateTag('recurring-transactions')
+    // revalidateTag (not updateTag, which throws outside a Server Action) now
+    // requires a second argument in Next 16 — the single-arg form is deprecated
+    // and type-errors. `{ expire: 0 }` is the documented pattern for external
+    // triggers (webhooks/cron) that need the next request to see fresh data
+    // immediately; `'max'` would give stale-while-revalidate, which is wrong
+    // here (we want the just-generated transactions visible on the next load).
+    revalidateTag('transactions', { expire: 0 })
+    revalidateTag('recurring-transactions', { expire: 0 })
   }
   return Response.json(result)
 }
