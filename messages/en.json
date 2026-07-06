@@ -45,5 +45,25 @@
     "columnName": "Name",
     "columnType": "Type",
     "columnActions": "Actions"
+  },
+  "Transactions": {
+    "title": "Transactions",
+    "newTransaction": "New transaction",
+    "editTransaction": "Edit transaction",
+    "loading": "Loading transactions…",
+    "filterAllTypes": "All types",
+    "filterAllCategories": "All categories",
+    "amount": "Amount",
+    "currency": "Currency (e.g. USD)",
+    "note": "Note (optional)",
+    "categoryPlaceholder": "Category",
+    "columnDate": "Date",
+    "columnCategory": "Category",
+    "columnType": "Type",
+    "columnAmount": "Amount",
+    "columnActions": "Actions",
+    "previous": "Previous",
+    "next": "Next",
+    "pageInfo": "Page {page} of {totalPages}"
   }
 }

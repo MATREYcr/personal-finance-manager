@@ -18,6 +18,16 @@ async function assertOwnsCategory(userId: string, categoryId: string) {
   if (!category) throw new Error('That category does not exist for this user')
 }
 
+// Server Actions serialize their return value to send back to the client
+// (React's Flight protocol), which only supports plain objects — Prisma's
+// `amount` field comes back as a `Decimal` class instance, and passing that
+// straight through throws "Only plain objects can be passed to Client
+// Components from Server Components. Decimal objects are not supported."
+// the moment a mutation resolves in the browser. Coerce it to a plain number.
+function toPlainTransaction<T extends { amount: unknown }>(transaction: T) {
+  return { ...transaction, amount: Number(transaction.amount) }
+}
+
 export async function createTransaction(input: z.infer<typeof transactionInputSchema>) {
   const session = await requireSession()
   const { categoryId, type, amount, currency, date, note } = transactionInputSchema.parse(input)
@@ -29,7 +39,7 @@ export async function createTransaction(input: z.infer<typeof transactionInputSc
   })
 
   updateTag('transactions')
-  return transaction
+  return toPlainTransaction(transaction)
 }
 
 const updateTransactionInputSchema = transactionInputSchema.extend({
@@ -48,7 +58,7 @@ export async function updateTransaction(input: z.infer<typeof updateTransactionI
   })
 
   updateTag('transactions')
-  return transaction
+  return toPlainTransaction(transaction)
 }
 
 export async function deleteTransaction(rawId: string) {

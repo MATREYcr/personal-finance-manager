@@ -45,5 +45,25 @@
     "columnName": "Nombre",
     "columnType": "Tipo",
     "columnActions": "Acciones"
+  },
+  "Transactions": {
+    "title": "Transacciones",
+    "newTransaction": "Nueva transacción",
+    "editTransaction": "Editar transacción",
+    "loading": "Cargando transacciones…",
+    "filterAllTypes": "Todos los tipos",
+    "filterAllCategories": "Todas las categorías",
+    "amount": "Monto",
+    "currency": "Moneda (ej. USD)",
+    "note": "Nota (opcional)",
+    "categoryPlaceholder": "Categoría",
+    "columnDate": "Fecha",
+    "columnCategory": "Categoría",
+    "columnType": "Tipo",
+    "columnAmount": "Monto",
+    "columnActions": "Acciones",
+    "previous": "Anterior",
+    "next": "Siguiente",
+    "pageInfo": "Página {page} de {totalPages}"
   }
 }
