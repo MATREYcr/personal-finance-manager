@@ -2,5 +2,18 @@
   "Common": {
     "appName": "Personal Finance Manager",
     "loading": "Loading…"
+  },
+  "Auth": {
+    "brandName": "Personal Finance Manager",
+    "headline": "Know where your money goes.",
+    "signInTitle": "Sign in",
+    "signUpTitle": "Create your account",
+    "name": "Name",
+    "email": "Email",
+    "password": "Password",
+    "signInSubmit": "Sign in",
+    "signUpSubmit": "Sign up",
+    "signInError": "Could not sign in",
+    "signUpError": "Could not sign up"
   }
 }
