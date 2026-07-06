@@ -19,6 +19,7 @@
 - All user-facing text goes through `next-intl` (`useTranslations` in Client Components, `getTranslations` in Server Components) — never a hardcoded string in JSX. Every later plan adds its own top-level namespace to `messages/es.json` and `messages/en.json`.
 - Locale-aware navigation (`Link`, `useRouter`, `usePathname`, `redirect`) always imports from `@/i18n/navigation`, never from `next/navigation` directly — the wrappers there preserve the current locale automatically.
 - This plan does not implement any business feature (no category/transaction CRUD, no dashboard). Its only job is scaffold + i18n + theming + schema + auth + shell.
+- **Environment note (Windows only):** launching `npm run dev` from inside Git Bash/MSYS on this machine reproducibly crashes Turbopack's PostCSS worker process with a Windows `0xc0000142` (`STATUS_DLL_INIT_FAILED`) error the moment a route that actually compiles `globals.css` is requested (confirmed: `/es/sign-up` 500'd every time under Git Bash, 200'd immediately when the exact same dev server was instead launched via `cmd.exe`/PowerShell). If any manual-verification step in this plan needs to hit a real page route (not just an API route or a redirect check), start `npm run dev` via PowerShell/cmd, not Git Bash. This is specific to this OS/shell combination, not a code defect — do not attempt to "fix" it in application code.
 
 ---
 
@@ -242,22 +243,42 @@ git commit -m "feat(scaffold): initialize Next.js app with Tailwind, shadcn/ui, 
 - Produces: `db` singleton at `@/lib/db`, used by every later feature.
 
 **Prisma version note:** as of Prisma 7, datasource URLs no longer live in
-`schema.prisma` and Prisma's CLI no longer auto-loads `.env` files —
-connection strings are configured in a separate `prisma.config.ts`, which
-must explicitly `import "dotenv/config"` to read `process.env` at all.
-`npx prisma init` (Step 1) scaffolds this automatically in current
-versions; if it doesn't (an older Prisma got resolved instead), follow
-Step 2 below by hand. Either way, **`dotenv` must be an installed
-devDependency** — `prisma.config.ts`'s generated `import "dotenv/config"`
-silently has nothing to import otherwise, and every Prisma CLI command
-(`migrate`, `studio`, `validate`) breaks the moment it runs. Verify with
-`npx prisma validate` before moving on — it should print "The schema ...
-is valid," not a missing-module error.
+`schema.prisma`, Prisma's CLI no longer auto-loads any `.env` file (not
+even `.env`, and never `.env.local`), and — this is the part that actually
+matters for Supabase — `PrismaClient` **requires an explicit driver
+adapter** at runtime; `new PrismaClient()` with no arguments throws
+`PrismaClientInitializationError: PrismaClient requires a driver adapter`.
+Three separate things to get right, verified end-to-end against a real
+Supabase project while building this task:
+
+1. **`prisma.config.ts` (CLI-only: migrate, studio, validate).** Its
+   `datasource` object accepts `url` and `shadowDatabaseUrl` — there is
+   **no `directUrl` key** in this new config shape (unlike the old
+   `schema.prisma` datasource block). Set its `url` to **`DIRECT_URL`**
+   (the session-mode/direct connection), not `DATABASE_URL`. Pointing it
+   at the transaction-mode pooled `DATABASE_URL` (port 6543) produced a
+   reproducible `ERROR: prepared statement "s1" already exists` and, on
+   other attempts, an indefinite hang — PgBouncer's transaction pooling
+   mode doesn't give the schema engine the session-level guarantees
+   `migrate`/`validate` need. `DIRECT_URL`'s session-mode pooler (port
+   5432) does not have this problem.
+2. **Explicit `.env.local` loading.** A bare `import "dotenv/config"`
+   only loads `.env`, never `.env.local` — this project (like Next.js
+   convention) keeps real secrets in `.env.local`, so `prisma.config.ts`
+   must call `config({ path: '.env.local' })` explicitly, or every env
+   var reads as `undefined`.
+3. **`src/lib/db/index.ts` (app runtime).** Needs `@prisma/adapter-pg`'s
+   `PrismaPg`, constructed with **`DATABASE_URL`** (the pooled,
+   transaction-mode connection — appropriate here since app-runtime
+   queries are exactly the high-concurrency, short-lived case PgBouncer
+   transaction pooling is designed for). This is a completely separate
+   connection/config path from `prisma.config.ts` — the CLI config does
+   not feed the generated client at all in Prisma 7.
 
 - [ ] **Step 1: Install Prisma**
 
 ```bash
-npm install prisma @prisma/client
+npm install prisma @prisma/client @prisma/adapter-pg
 npm install -D dotenv
 npx prisma init --datasource-provider postgresql
 ```
@@ -277,17 +298,22 @@ datasource db {
 
 ```typescript
 // prisma.config.ts
-import 'dotenv/config'
+import { config } from 'dotenv'
 import { defineConfig } from 'prisma/config'
+
+config({ path: '.env.local' })
 
 export default defineConfig({
   schema: 'prisma/schema.prisma',
   migrations: {
     path: 'prisma/migrations',
   },
+  // CLI-only (migrate/studio/validate). Must be the session/direct
+  // connection (DIRECT_URL) — the transaction-mode pooled DATABASE_URL
+  // causes "prepared statement already exists" errors or hangs here.
+  // There is no `directUrl` key in Prisma 7's config shape.
   datasource: {
-    url: process.env.DATABASE_URL,
-    directUrl: process.env.DIRECT_URL,
+    url: process.env.DIRECT_URL,
   },
 })
 ```
@@ -299,15 +325,24 @@ step.
 
 - [ ] **Step 3: Create the Prisma singleton**
 
+Prisma 7's `PrismaClient` requires an explicit driver adapter — it will
+not implicitly read any connection string on its own. Use the pooled
+`DATABASE_URL` here (transaction-mode pooling suits the app's normal
+concurrent query traffic; this is intentionally the *other* URL from
+`prisma.config.ts`'s `DIRECT_URL`).
+
 ```typescript
 // src/lib/db/index.ts
 import { PrismaClient } from '@prisma/client'
+import { PrismaPg } from '@prisma/adapter-pg'
 
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined
 }
 
-export const db = globalForPrisma.prisma ?? new PrismaClient()
+const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL })
+
+export const db = globalForPrisma.prisma ?? new PrismaClient({ adapter })
 
 if (process.env.NODE_ENV !== 'production') {
   globalForPrisma.prisma = db
