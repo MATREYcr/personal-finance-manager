@@ -1,7 +1,24 @@
 {
   "Common": {
     "appName": "Personal Finance Manager",
-    "loading": "Loading…"
+    "loading": "Loading…",
+    "menu": "Menu",
+    "nav": {
+      "dashboard": "Dashboard",
+      "transactions": "Transactions",
+      "categories": "Categories",
+      "recurring": "Recurring",
+      "settings": "Settings",
+      "signOut": "Sign out",
+      "menu": "Menu"
+    },
+    "actions": {
+      "save": "Save",
+      "edit": "Edit",
+      "delete": "Delete",
+      "cancel": "Cancel",
+      "new": "New"
+    }
   },
   "Auth": {
     "brandName": "Personal Finance Manager",
