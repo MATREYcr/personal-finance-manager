@@ -32,5 +32,8 @@
     "signUpSubmit": "Registrarme",
     "signInError": "No se pudo iniciar sesión",
     "signUpError": "No se pudo crear la cuenta"
+  },
+  "Categories": {
+    "deleteError": "No se puede eliminar una categoría que todavía tiene transacciones. Reasigná o eliminá esas transacciones primero."
   }
 }

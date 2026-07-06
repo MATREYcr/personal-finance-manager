@@ -32,5 +32,8 @@
     "signUpSubmit": "Sign up",
     "signInError": "Could not sign in",
     "signUpError": "Could not sign up"
+  },
+  "Categories": {
+    "deleteError": "Cannot delete a category that still has transactions. Reassign or delete those transactions first."
   }
 }
