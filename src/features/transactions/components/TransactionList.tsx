@@ -4,6 +4,7 @@ import { Pencil, Trash2 } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 import { useTransactions } from '../hooks/useTransactions'
 import { useTransactionMutations } from '../hooks/useTransactionMutations'
 import { TransactionFilters } from './TransactionFilters'
@@ -80,7 +81,25 @@ export function TransactionList() {
                           </Button>
                         }
                       />
-                      <Button variant="destructive" size="icon" aria-label={tCommon('delete')} onClick={() => remove.mutate(tx.id)}>
+                      <Button
+                        variant="destructive"
+                        size="icon"
+                        aria-label={tCommon('delete')}
+                        disabled={remove.isPending}
+                        onClick={() =>
+                          remove.mutate(tx.id, {
+                            onSuccess: () => {
+                              // If this was the only row left on a page beyond
+                              // the first, deleting it would strand the user on
+                              // a now-empty out-of-range page ("Page 2 of 1").
+                              // Step back a page so they land on real rows.
+                              if (data.transactions.length === 1 && page > 1) {
+                                setPage((p) => p - 1)
+                              }
+                            },
+                          })
+                        }
+                      >
                         <Trash2 className="h-4 w-4" />
                       </Button>
                     </TableCell>
@@ -110,6 +129,11 @@ export function TransactionList() {
               </Button>
             </div>
           </div>
+          {remove.isError && (
+            <Alert variant="destructive">
+              <AlertDescription>{(remove.error as Error).message}</AlertDescription>
+            </Alert>
+          )}
         </>
       )}
     </div>
