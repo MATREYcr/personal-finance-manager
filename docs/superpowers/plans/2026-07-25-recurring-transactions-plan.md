@@ -21,6 +21,7 @@
 - All routes live under `src/app/[locale]/...`. All user-facing text uses `next-intl` (`useTranslations` in Client Components) under this feature's own `RecurringTransactions` namespace — no hardcoded strings. All styling uses shadcn's theme-aware Tailwind tokens (never hardcoded colors).
 - This project's shadcn components (`Dialog`, `Sheet`, etc.) are built on `@base-ui/react`, not Radix — there is no `asChild` prop. To compose a trigger with a custom element, pass it via the `render` prop instead: `<DialogTrigger render={trigger} />` (self-closing; `DialogTrigger`'s own children, if any, would override `trigger`'s children, so leave it childless when `trigger` already carries its own content). `trigger`'s type must be `React.ReactElement`, not the wider `React.ReactNode` — `render` only accepts an element or a render function.
 - `next.config.ts` now has `cacheComponents: true` (enabled during Categories Task 3 for `'use cache'` queries). Every Server Component page that calls `getTranslations` or otherwise reads the request locale — not just this plan's `RecurringTransactionsPage` — must call `setRequestLocale(locale)` itself before doing so; the root `[locale]/layout.tsx`'s call is not sufficient on its own. Skipping this doesn't just warn — it fails `npm run build` outright with "Uncached data was accessed outside of `<Suspense>`".
+- base-ui's `<SelectValue>` renders the raw `value` by default (confirmed in Base UI's own docs), not the corresponding `SelectItem`'s label — a bare `<SelectValue />` on an enum select shows the literal enum string, and on a category-id select shows the raw id itself. Always pass a children render-callback that maps the value to the correct label (translated for enums, looked up by id for categories), as this plan's code samples already do.
 
 ## Prerequisites (from Foundation + Categories + Transactions, already merged)
 
@@ -412,6 +413,7 @@ export function useRecurringTransactionMutations() {
 ```typescript
 // src/features/recurring-transactions/components/RecurringTransactionFormDialog.tsx
 'use client'
+import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -436,6 +438,18 @@ const schema = z.object({
 })
 type FormValues = z.infer<typeof schema>
 
+function defaultValuesFor(rule?: RecurringTransactionWithCategory): FormValues {
+  return {
+    categoryId: rule?.categoryId ?? '',
+    type: rule?.type ?? 'EXPENSE',
+    amount: rule ? Number(rule.amount) : 0,
+    currency: rule?.currency ?? 'USD',
+    frequency: rule?.frequency ?? 'MONTHLY',
+    startDate: rule ? rule.nextRunDate.toString().slice(0, 10) : new Date().toISOString().slice(0, 10),
+    note: rule?.note ?? '',
+  }
+}
+
 export function RecurringTransactionFormDialog({
   rule,
   trigger,
@@ -449,18 +463,21 @@ export function RecurringTransactionFormDialog({
   const tCommon = useTranslations('Common.actions')
   const { data: categories } = useCategories()
   const { create, update } = useRecurringTransactionMutations()
+  const [open, setOpen] = useState(false)
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
-    defaultValues: {
-      categoryId: rule?.categoryId ?? '',
-      type: rule?.type ?? 'EXPENSE',
-      amount: rule ? Number(rule.amount) : 0,
-      currency: rule?.currency ?? 'USD',
-      frequency: rule?.frequency ?? 'MONTHLY',
-      startDate: rule ? rule.nextRunDate.toString().slice(0, 10) : new Date().toISOString().slice(0, 10),
-      note: rule?.note ?? '',
-    },
+    defaultValues: defaultValuesFor(rule),
   })
+
+  function handleOpenChange(next: boolean) {
+    // Re-sync the form to this rule's current values (or a blank slate for
+    // "new") every time the dialog opens — react-hook-form's defaultValues is
+    // only read once at mount, so without this a persistent row instance
+    // would keep showing whatever it first opened with. Same fix as
+    // Categories' CategoryFormDialog and Transactions' TransactionFormDialog.
+    if (next) form.reset(defaultValuesFor(rule))
+    setOpen(next)
+  }
 
   async function onSubmit(values: FormValues) {
     if (rule) {
@@ -468,10 +485,11 @@ export function RecurringTransactionFormDialog({
     } else {
       await create.mutateAsync(values)
     }
+    setOpen(false)
   }
 
   return (
-    <Dialog>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger render={trigger} />
       <DialogContent>
         <DialogHeader>
@@ -479,14 +497,30 @@ export function RecurringTransactionFormDialog({
         </DialogHeader>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
           <Select defaultValue={form.getValues('type')} onValueChange={(v) => form.setValue('type', v as 'EXPENSE' | 'INCOME')}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectTrigger>
+              {/* base-ui's SelectValue renders the raw value by default — a
+                  children render-callback is required to map it to a
+                  translated label. */}
+              <SelectValue>
+                {(value: string | null) => (value === 'EXPENSE' ? tCategories('typeExpense') : tCategories('typeIncome'))}
+              </SelectValue>
+            </SelectTrigger>
             <SelectContent>
               <SelectItem value="EXPENSE">{tCategories('typeExpense')}</SelectItem>
               <SelectItem value="INCOME">{tCategories('typeIncome')}</SelectItem>
             </SelectContent>
           </Select>
           <Select defaultValue={form.getValues('categoryId')} onValueChange={(v) => form.setValue('categoryId', v)}>
-            <SelectTrigger><SelectValue placeholder={tTransactions('categoryPlaceholder')} /></SelectTrigger>
+            <SelectTrigger>
+              {/* Same default-raw-value issue as the type select above, but
+                  here the raw value is a category id — without this callback
+                  the trigger would literally show the category's id string. */}
+              <SelectValue placeholder={tTransactions('categoryPlaceholder')}>
+                {(value: string | null) =>
+                  (categories as Category[] | undefined)?.find((c) => c.id === value)?.name ?? tTransactions('categoryPlaceholder')
+                }
+              </SelectValue>
+            </SelectTrigger>
             <SelectContent>
               {(categories as Category[] | undefined)?.map((c) => (
                 <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
@@ -496,7 +530,14 @@ export function RecurringTransactionFormDialog({
           <Input type="number" step="0.01" placeholder={tTransactions('amount')} {...form.register('amount')} />
           <Input placeholder={tTransactions('currency')} maxLength={3} {...form.register('currency')} />
           <Select defaultValue={form.getValues('frequency')} onValueChange={(v) => form.setValue('frequency', v as 'WEEKLY' | 'MONTHLY' | 'YEARLY')}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectTrigger>
+              {/* Same default-raw-value issue again, for the frequency enum. */}
+              <SelectValue>
+                {(value: string | null) =>
+                  value === 'WEEKLY' ? t('frequencyWeekly') : value === 'YEARLY' ? t('frequencyYearly') : t('frequencyMonthly')
+                }
+              </SelectValue>
+            </SelectTrigger>
             <SelectContent>
               <SelectItem value="WEEKLY">{t('frequencyWeekly')}</SelectItem>
               <SelectItem value="MONTHLY">{t('frequencyMonthly')}</SelectItem>
