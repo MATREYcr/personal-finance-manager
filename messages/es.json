@@ -34,6 +34,17 @@
     "signUpError": "No se pudo crear la cuenta"
   },
   "Categories": {
-    "deleteError": "No se puede eliminar una categoría que todavía tiene transacciones. Reasigná o eliminá esas transacciones primero."
+    "deleteError": "No se puede eliminar una categoría que todavía tiene transacciones. Reasigná o eliminá esas transacciones primero.",
+    "title": "Categorías",
+    "newCategory": "Nueva categoría",
+    "editCategory": "Editar categoría",
+    "name": "Nombre",
+    "type": "Tipo",
+    "typeExpense": "Gasto",
+    "typeIncome": "Ingreso",
+    "loading": "Cargando categorías…",
+    "columnName": "Nombre",
+    "columnType": "Tipo",
+    "columnActions": "Acciones"
   }
 }
