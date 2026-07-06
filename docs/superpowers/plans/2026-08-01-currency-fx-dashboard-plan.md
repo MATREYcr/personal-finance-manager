@@ -15,7 +15,7 @@
 - Package manager is npm.
 - Every Server Action validates input with Zod and scopes by the authenticated `userId`.
 - The dashboard's cached query function must **not** take a `PrismaClient` (or any object) as a parameter — `'use cache'` requires serializable arguments, and a Prisma client instance is not serializable. Pure logic (period ranges, summary math) lives in separate, dependency-free modules that take plain data and are the only things unit-tested; the cached query wrapper itself imports `db` directly (same convention as every other `queries.ts` in this project) and is not unit-tested — it's covered by this plan's manual walkthrough instead.
-- The FX refresh cron and the recurring-transaction generation cron (from the Recurring Transactions plan) both write data outside of `actions.ts` — each must call the relevant `revalidateTag` itself. This plan's FX cron must call `revalidateTag('exchange-rates')` on a successful refresh.
+- The FX refresh cron and the recurring-transaction generation cron (from the Recurring Transactions plan) both write data outside of `actions.ts` — each must call the relevant `revalidateTag` itself. This plan's FX cron must call **`revalidateTag('exchange-rates', { expire: 0 })`** on a successful refresh — in Next 16 `revalidateTag`'s single-arg form is deprecated and type-errors, and `{ expire: 0 }` (not `'max'`) is the documented pattern for an external cron trigger that needs the next request to see fresh rates immediately. It is a Route Handler, so `updateTag` is not usable here (it throws outside a Server Action).
 - `vercel.json` may already exist (created by the Recurring Transactions plan) — if so, append the FX cron entry to its existing `crons` array rather than overwriting the file.
 - All routes live under `src/app/[locale]/...`. All user-facing text uses `next-intl` (`useTranslations` in Client Components, `getTranslations` in Server Components) under this feature's own `Dashboard` and `Settings` namespaces — no hardcoded strings. All navigation (`useRouter`, `redirect`) imports from `@/i18n/navigation`, never `next/navigation`. All styling uses shadcn's theme-aware Tailwind tokens; where no semantic token exists (e.g. a positive/savings color), use an explicit `dark:` variant so it stays legible in both themes rather than hardcoding a single-theme color.
 - `next.config.ts` has `cacheComponents: true` (enabled during Categories Task 3 for `'use cache'` queries). Every Server Component page that calls `getTranslations`/`useTranslations`/`getMessages` — `SettingsPage` in this plan — must call `setRequestLocale(locale)` itself before doing so; the root `[locale]/layout.tsx`'s call is not sufficient on its own. Skipping this doesn't just warn — it fails `npm run build` outright with "Uncached data was accessed outside of `<Suspense>`". `DashboardPage` doesn't call any next-intl server function directly (it only uses the locale-aware `redirect`, which takes `locale` as an explicit argument, not an ambient one) and is inherently dynamic anyway (it reads `headers()` for the session), so it does not need this call — but if a getTranslations call is ever added to it, add `setRequestLocale` too.
@@ -272,7 +272,11 @@ export async function GET(request: NextRequest) {
 
   const result = await refreshExchangeRates(db)
   if (result.updated > 0) {
-    revalidateTag('exchange-rates')
+    // revalidateTag (not updateTag — this is a Route Handler, not a Server
+    // Action) requires a second argument in Next 16; the single-arg form is
+    // deprecated and type-errors. `{ expire: 0 }` is the documented pattern for
+    // external cron/webhook triggers that need fresh data on the next request.
+    revalidateTag('exchange-rates', { expire: 0 })
   }
   return Response.json(result)
 }

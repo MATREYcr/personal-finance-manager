@@ -16,7 +16,7 @@
 - Every Server Action validates input with Zod and scopes by the authenticated `userId`.
 - `queries.ts` uses `'use cache'` + `cacheTag('recurring-transactions')`; `actions.ts` mutations call **`updateTag('recurring-transactions')`** (not `revalidateTag`) after a successful write — `updateTag` is Next.js 16's read-your-own-writes primitive (immediate cache expiry) and is only usable from Server Actions.
 - Editing a `RecurringTransaction` must never touch already-generated `Transaction` rows, and must never touch `nextRunDate` (only the generation cron advances that field).
-- The generation cron (a Route Handler, not a Server Action) must invalidate the `'transactions'` and `'recurring-transactions'` cache tags itself using **`revalidateTag`**, not `updateTag` — `updateTag` throws when called outside a Server Action, so the cron route cannot use the same primitive `actions.ts` uses.
+- The generation cron (a Route Handler, not a Server Action) must invalidate the `'transactions'` and `'recurring-transactions'` cache tags itself using **`revalidateTag`**, not `updateTag` — `updateTag` throws when called outside a Server Action, so the cron route cannot use the same primitive `actions.ts` uses. In Next 16 `revalidateTag` requires a second argument (the single-arg form is deprecated and type-errors); for an external cron trigger that needs the next request to see fresh data immediately, pass **`{ expire: 0 }`** (`revalidateTag('transactions', { expire: 0 })`) — not `'max'`, which gives stale-while-revalidate.
 - Per-rule generation (create `Transaction` + advance `nextRunDate`) must be atomic (`db.$transaction`) so a retry after partial failure never double-creates or skips.
 - All routes live under `src/app/[locale]/...`. All user-facing text uses `next-intl` (`useTranslations` in Client Components) under this feature's own `RecurringTransactions` namespace — no hardcoded strings. All styling uses shadcn's theme-aware Tailwind tokens (never hardcoded colors).
 - This project's shadcn components (`Dialog`, `Sheet`, etc.) are built on `@base-ui/react`, not Radix — there is no `asChild` prop. To compose a trigger with a custom element, pass it via the `render` prop instead: `<DialogTrigger render={trigger} />` (self-closing; `DialogTrigger`'s own children, if any, would override `trigger`'s children, so leave it childless when `trigger` already carries its own content). `trigger`'s type must be `React.ReactElement`, not the wider `React.ReactNode` — `render` only accepts an element or a render function.
@@ -954,8 +954,14 @@ export async function GET(request: NextRequest) {
   if (result.generated > 0) {
     // This path creates Transaction rows and advances nextRunDate outside of
     // actions.ts, so it must invalidate the same tags actions.ts would have.
-    revalidateTag('transactions')
-    revalidateTag('recurring-transactions')
+    // revalidateTag (not updateTag, which throws outside a Server Action) now
+    // requires a second argument in Next 16 — the single-arg form is deprecated
+    // and type-errors. `{ expire: 0 }` is the documented pattern for external
+    // triggers (webhooks/cron) that need the next request to see fresh data
+    // immediately; `'max'` would give stale-while-revalidate, which is wrong
+    // here (we want the just-generated transactions visible on the next load).
+    revalidateTag('transactions', { expire: 0 })
+    revalidateTag('recurring-transactions', { expire: 0 })
   }
   return Response.json(result)
 }
