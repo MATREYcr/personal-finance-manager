@@ -1187,6 +1187,8 @@ export const queryKeys = {
 
 - [ ] **Step 5: Add full nav/action labels to both message catalogs**
 
+`nav.menu` is the hamburger button's aria-label, used by the mobile drawer trigger in Step 7 below — nest it inside `nav`, not as a sibling of `actions` (the code calls `useTranslations('Common.nav')` and then `t('menu')`, so it must resolve at `Common.nav.menu`).
+
 ```json
 // messages/es.json — add alongside "Common" (extends the existing "loading"/"appName" keys)
   "Common": {
@@ -1198,7 +1200,8 @@ export const queryKeys = {
       "categories": "Categorías",
       "recurring": "Recurrentes",
       "settings": "Configuración",
-      "signOut": "Cerrar sesión"
+      "signOut": "Cerrar sesión",
+      "menu": "Menú"
     },
     "actions": {
       "save": "Guardar",
@@ -1221,7 +1224,8 @@ export const queryKeys = {
       "categories": "Categories",
       "recurring": "Recurring",
       "settings": "Settings",
-      "signOut": "Sign out"
+      "signOut": "Sign out",
+      "menu": "Menu"
     },
     "actions": {
       "save": "Save",
@@ -1229,8 +1233,7 @@ export const queryKeys = {
       "delete": "Delete",
       "cancel": "Cancel",
       "new": "New"
-    },
-    "menu": "Menu"
+    }
   }
 ```
 
@@ -1273,6 +1276,12 @@ export function LanguageToggle() {
 ```
 
 - [ ] **Step 7: Protected-area layout — sidebar (desktop) + topbar + mobile drawer, per the mockup's `NavShell.jsx`**
+
+This project's shadcn style (`base-nova`) builds `Sheet`/`Dialog` on
+`@base-ui/react`, not Radix — use `SheetTrigger`'s `render` prop (as
+shown below), not Radix's `asChild`; `asChild` doesn't exist on this
+component and fails `tsc --noEmit` with `Property 'asChild' does not
+exist`.
 
 ```typescript
 // src/app/[locale]/(dashboard)/layout.tsx
@@ -1375,10 +1384,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         {/* Topbar (mockup: 60px, right-aligned lang/theme toggles) */}
         <div className="sticky top-0 z-30 flex h-[60px] items-center justify-between gap-2 border-b bg-card px-4 md:justify-end md:px-8">
           <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
-            <SheetTrigger asChild>
-              <Button variant="ghost" size="icon" aria-label={tNav('menu')} className="md:hidden">
-                <Menu className="h-5 w-5" />
-              </Button>
+            <SheetTrigger
+              render={<Button variant="ghost" size="icon" aria-label={tNav('menu')} className="md:hidden" />}
+            >
+              <Menu className="h-5 w-5" />
             </SheetTrigger>
             <SheetContent side="left" className="w-72 p-4">
               <NavLinks onNavigate={() => setMobileOpen(false)} />

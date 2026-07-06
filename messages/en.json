@@ -2,7 +2,6 @@
   "Common": {
     "appName": "Personal Finance Manager",
     "loading": "Loading…",
-    "menu": "Menu",
     "nav": {
       "dashboard": "Dashboard",
       "transactions": "Transactions",
