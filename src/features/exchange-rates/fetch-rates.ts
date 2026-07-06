@@ -1,0 +1,38 @@
+import type { PrismaClient } from '@prisma/client'
+import { PIVOT_CURRENCY } from '@/lib/currency/convert'
+
+const FX_API_URL = `https://open.er-api.com/v6/latest/${PIVOT_CURRENCY}`
+
+interface FxApiResponse {
+  result: string
+  base_code: string
+  rates: Record<string, number>
+}
+
+export async function refreshExchangeRates(
+  db: PrismaClient,
+  fetchImpl: typeof fetch = fetch
+): Promise<{ updated: number; error?: string }> {
+  const response = await fetchImpl(FX_API_URL)
+  if (!response.ok) {
+    return { updated: 0, error: `FX API responded with status ${response.status}` }
+  }
+
+  const data = (await response.json()) as FxApiResponse
+  if (data.result !== 'success') {
+    return { updated: 0, error: `FX API returned result: ${data.result}` }
+  }
+
+  let updated = 0
+  for (const [currency, rate] of Object.entries(data.rates)) {
+    if (currency === PIVOT_CURRENCY) continue
+    await db.exchangeRate.upsert({
+      where: { targetCurrency: currency },
+      create: { targetCurrency: currency, rate },
+      update: { rate },
+    })
+    updated++
+  }
+
+  return { updated }
+}
