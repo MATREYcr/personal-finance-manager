@@ -4,6 +4,7 @@ import { Pencil, Trash2, Pause, Play } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 import { useRecurringTransactions } from '../hooks/useRecurringTransactions'
 import { useRecurringTransactionMutations } from '../hooks/useRecurringTransactionMutations'
 import { RecurringTransactionFormDialog } from './RecurringTransactionFormDialog'
@@ -74,6 +75,7 @@ export function RecurringTransactionList() {
                       variant="secondary"
                       size="icon"
                       aria-label={t('pause')}
+                      disabled={toggleActive.isPending}
                       onClick={() => toggleActive.mutate({ id: rule.id, active: false })}
                     >
                       <Pause className="h-4 w-4" />
@@ -83,12 +85,19 @@ export function RecurringTransactionList() {
                       size="icon"
                       aria-label={t('resume')}
                       className="bg-(--positive) text-white hover:opacity-90"
+                      disabled={toggleActive.isPending}
                       onClick={() => toggleActive.mutate({ id: rule.id, active: true })}
                     >
                       <Play className="h-4 w-4" />
                     </Button>
                   )}
-                  <Button variant="destructive" size="icon" aria-label={tCommon('delete')} onClick={() => remove.mutate(rule.id)}>
+                  <Button
+                    variant="destructive"
+                    size="icon"
+                    aria-label={tCommon('delete')}
+                    disabled={remove.isPending}
+                    onClick={() => remove.mutate(rule.id)}
+                  >
                     <Trash2 className="h-4 w-4" />
                   </Button>
                 </TableCell>
@@ -97,6 +106,16 @@ export function RecurringTransactionList() {
           </TableBody>
         </Table>
       </div>
+      {/* Surface mutation failures — a silently-swallowed pause/resume is
+          especially bad here: the user would believe a rule is paused when
+          it isn't, and the generation cron would keep running it. */}
+      {(toggleActive.isError || remove.isError) && (
+        <Alert variant="destructive">
+          <AlertDescription>
+            {((toggleActive.error ?? remove.error) as Error)?.message}
+          </AlertDescription>
+        </Alert>
+      )}
     </div>
   )
 }
