@@ -29,7 +29,7 @@
 - `.env.example` already documents `CRON_SECRET` (added in Foundation) — set a real value in `.env.local` before testing the cron endpoint in this plan.
 - `vercel.json` does not exist yet in this codebase unless a prior plan created it — if absent, create it in Task 3 of this plan; if present (e.g. from a differently-ordered execution), append to its `crons` array instead of overwriting it.
 - `messages/es.json` / `messages/en.json` already contain `Common`, `Auth`, `Categories`, `Transactions` — this plan adds a new top-level `RecurringTransactions` namespace.
-- shadcn components already installed (button, input, label, card, dialog, form, table, select, tabs, badge, alert, sheet) and `lucide-react` is available for row-action icons.
+- shadcn components already installed (button, input, label, card, dialog, table, select, tabs, badge, alert, sheet — no `form`, this project uses `react-hook-form` directly rather than shadcn's `Form` wrapper) and `lucide-react` is available for row-action icons.
 
 ---
 

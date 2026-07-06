@@ -25,7 +25,7 @@
 - `Category` model in `prisma/schema.prisma` (via `@prisma/client`).
 - `queryKeys` at `@/lib/query/keys` (this plan adds a `categories` key to it).
 - `<QueryProvider>`, `<ThemeProvider>`, and `<NextIntlClientProvider>` already wired in `src/app/[locale]/layout.tsx`.
-- shadcn components already installed: button, input, label, card, dialog, form, table, select, tabs, badge, alert, sheet. `lucide-react` is available (installed alongside shadcn init) for row-action icons.
+- shadcn components already installed: button, input, label, card, dialog, table, select, tabs, badge, alert, sheet (no `form` — this project doesn't use shadcn's `Form`/`FormField` wrapper, forms use `react-hook-form` directly). `lucide-react` is available (installed alongside shadcn init) for row-action icons.
 - `src/app/[locale]/(dashboard)/layout.tsx` nav already links to `/categories` and reads `Common.nav`/`Common.actions` keys from the message catalogs.
 - `messages/es.json` / `messages/en.json` already contain `Common` and `Auth` namespaces — this plan adds a new top-level `Categories` namespace.
 

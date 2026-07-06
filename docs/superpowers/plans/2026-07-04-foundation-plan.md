@@ -93,10 +93,10 @@ This also sets up the `.dark` CSS variable overrides in `globals.css` that `next
 - [ ] **Step 4: Add the shadcn components this project will need**
 
 ```bash
-npx shadcn@latest add button input label card dialog form table select tabs badge alert sheet
+npx shadcn@latest add button input label card dialog table select tabs badge alert sheet
 ```
 
-(`alert` backs the Categories delete-blocked error; `sheet` backs the mobile nav drawer — both added in later plans/steps.)
+(`alert` backs the Categories delete-blocked error; `sheet` backs the mobile nav drawer — both added in later plans/steps. Do **not** add `form` — no plan in this project imports shadcn's `Form`/`FormField` wrapper; every form dialog uses `react-hook-form` directly with `Input`/`Select`/`Label`/`Button`. If your shadcn version's `form` registry entry is broken/stub for the active style, that's fine — it's unused here.)
 
 - [ ] **Step 5: Install Vitest and path-alias support**
 

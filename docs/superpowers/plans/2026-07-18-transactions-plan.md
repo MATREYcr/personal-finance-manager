@@ -26,7 +26,7 @@
 - `useCategories()` hook at `@/features/categories/hooks/useCategories` and `Category` type at `@/features/categories/types` — used for the category-select dropdown. The `Categories` namespace in the message catalogs already provides `typeExpense`/`typeIncome` labels, reused here via `useTranslations('Categories')` where a category type needs to be displayed.
 - `src/app/[locale]/(dashboard)/layout.tsx` nav already links to `/transactions`.
 - `messages/es.json` / `messages/en.json` already contain `Common`, `Auth`, `Categories` — this plan adds a new top-level `Transactions` namespace.
-- shadcn components already installed (button, input, label, card, dialog, form, table, select, tabs, badge, alert, sheet) and `lucide-react` is available for row-action icons.
+- shadcn components already installed (button, input, label, card, dialog, table, select, tabs, badge, alert, sheet — no `form`, this project uses `react-hook-form` directly rather than shadcn's `Form` wrapper) and `lucide-react` is available for row-action icons.
 
 ---
 
