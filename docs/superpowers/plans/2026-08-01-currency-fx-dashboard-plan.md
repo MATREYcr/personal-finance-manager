@@ -18,7 +18,7 @@
 - The FX refresh cron and the recurring-transaction generation cron (from the Recurring Transactions plan) both write data outside of `actions.ts` — each must call the relevant `revalidateTag` itself. This plan's FX cron must call **`revalidateTag('exchange-rates', { expire: 0 })`** on a successful refresh — in Next 16 `revalidateTag`'s single-arg form is deprecated and type-errors, and `{ expire: 0 }` (not `'max'`) is the documented pattern for an external cron trigger that needs the next request to see fresh rates immediately. It is a Route Handler, so `updateTag` is not usable here (it throws outside a Server Action).
 - `vercel.json` may already exist (created by the Recurring Transactions plan) — if so, append the FX cron entry to its existing `crons` array rather than overwriting the file.
 - All routes live under `src/app/[locale]/...`. All user-facing text uses `next-intl` (`useTranslations` in Client Components, `getTranslations` in Server Components) under this feature's own `Dashboard` and `Settings` namespaces — no hardcoded strings. All navigation (`useRouter`, `redirect`) imports from `@/i18n/navigation`, never `next/navigation`. All styling uses shadcn's theme-aware Tailwind tokens; where no semantic token exists (e.g. a positive/savings color), use an explicit `dark:` variant so it stays legible in both themes rather than hardcoding a single-theme color.
-- `next.config.ts` has `cacheComponents: true` (enabled during Categories Task 3 for `'use cache'` queries). Every Server Component page that calls `getTranslations`/`useTranslations`/`getMessages` — `SettingsPage` in this plan — must call `setRequestLocale(locale)` itself before doing so; the root `[locale]/layout.tsx`'s call is not sufficient on its own. Skipping this doesn't just warn — it fails `npm run build` outright with "Uncached data was accessed outside of `<Suspense>`". `DashboardPage` doesn't call any next-intl server function directly (it only uses the locale-aware `redirect`, which takes `locale` as an explicit argument, not an ambient one) and is inherently dynamic anyway (it reads `headers()` for the session), so it does not need this call — but if a getTranslations call is ever added to it, add `setRequestLocale` too.
+- `next.config.ts` has `cacheComponents: true` (enabled during Categories Task 3 for `'use cache'` queries). Every Server Component page that calls `getTranslations`/`useTranslations`/`getMessages` — `SettingsPage` in this plan — must call `setRequestLocale(locale)` itself before doing so; the root `[locale]/layout.tsx`'s call is not sufficient on its own. Skipping this doesn't just warn — it fails `npm run build` outright with "Uncached data was accessed outside of `<Suspense>`". `DashboardPage` doesn't call any next-intl server function directly (it only uses the locale-aware `redirect`, which takes `locale` as an explicit argument, not an ambient one), so it does not need `setRequestLocale` — but if a getTranslations call is ever added to it, add `setRequestLocale` too. Separately, because `DashboardPage` reads dynamic data (`headers()` for the session + `searchParams`), Cache Components requires those reads to sit inside a `<Suspense>` boundary or `npm run build` fails with "Uncached data was accessed outside of `<Suspense>`" — so the page component stays synchronous and delegates the dynamic reads to a `<Suspense>`-wrapped async child (see Step 4's code).
 
 ## Prerequisites (from Foundation + Transactions, already merged)
 
@@ -879,6 +879,7 @@ export function SummaryCards({ summary, baseCurrency }: { summary: DashboardSumm
 
 ```typescript
 // src/app/[locale]/(dashboard)/dashboard/page.tsx
+import { Suspense } from 'react'
 import { headers } from 'next/headers'
 import { auth } from '@/lib/auth'
 import { redirect } from '@/i18n/navigation'
@@ -887,7 +888,27 @@ import { PeriodSwitcher } from '@/features/dashboard/components/PeriodSwitcher'
 import { SummaryCards } from '@/features/dashboard/components/SummaryCards'
 import type { Period } from '@/features/dashboard/types'
 
-export default async function DashboardPage({
+// Cache Components (next.config.ts `cacheComponents: true`) errors at build time
+// ("Uncached data was accessed outside of <Suspense>") if headers()/searchParams
+// are read at the top of a page with no Suspense boundary. Per Next's own
+// "migrating to Cache Components" guide, keep the page component synchronous and
+// push the runtime-data access into a child wrapped in <Suspense>, passing the
+// params/searchParams promises straight through as props.
+export default function DashboardPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ locale: string }>
+  searchParams: Promise<{ period?: string }>
+}) {
+  return (
+    <Suspense fallback={<DashboardSkeleton />}>
+      <DashboardContent params={params} searchParams={searchParams} />
+    </Suspense>
+  )
+}
+
+async function DashboardContent({
   params,
   searchParams,
 }: {
@@ -896,21 +917,36 @@ export default async function DashboardPage({
 }) {
   const { locale } = await params
   const session = await auth.api.getSession({ headers: await headers() })
-  if (!session) redirect({ href: '/sign-in', locale })
+  if (!session) {
+    // next-intl's redirect() isn't typed `never`, so without this explicit
+    // return TS can't narrow `session` for the rest of the function.
+    redirect({ href: '/sign-in', locale })
+    return
+  }
 
   const { period: rawPeriod } = await searchParams
   const period: Period = rawPeriod === 'week' || rawPeriod === 'year' ? rawPeriod : 'month'
+  const baseCurrency = (session.user as { baseCurrency: string }).baseCurrency
 
-  const summary = await getDashboardSummary(
-    session.user.id,
-    period,
-    (session.user as { baseCurrency: string }).baseCurrency
-  )
+  const summary = await getDashboardSummary(session.user.id, period, baseCurrency)
 
   return (
     <div className="space-y-6 p-4 md:p-6">
       <PeriodSwitcher period={period} />
-      <SummaryCards summary={summary} baseCurrency={(session.user as { baseCurrency: string }).baseCurrency} />
+      <SummaryCards summary={summary} baseCurrency={baseCurrency} />
+    </div>
+  )
+}
+
+function DashboardSkeleton() {
+  return (
+    <div className="space-y-6 p-4 md:p-6">
+      <div className="h-8 w-48 animate-pulse rounded-md bg-muted" />
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <div className="h-28 animate-pulse rounded-xl bg-muted" />
+        <div className="h-28 animate-pulse rounded-xl bg-muted" />
+        <div className="h-28 animate-pulse rounded-xl bg-muted" />
+      </div>
     </div>
   )
 }
