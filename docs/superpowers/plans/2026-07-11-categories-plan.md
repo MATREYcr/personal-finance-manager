@@ -551,7 +551,14 @@ export function CategoryFormDialog({ category, trigger }: { category?: Category;
             defaultValue={form.getValues('type')}
             onValueChange={(v) => form.setValue('type', v as 'EXPENSE' | 'INCOME')}
           >
-            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectTrigger>
+              {/* base-ui's SelectValue renders the raw value by default — a
+                  children render-callback is required to map it to a
+                  translated label. */}
+              <SelectValue>
+                {(value: string | null) => (value === 'EXPENSE' ? t('typeExpense') : t('typeIncome'))}
+              </SelectValue>
+            </SelectTrigger>
             <SelectContent>
               <SelectItem value="EXPENSE">{t('typeExpense')}</SelectItem>
               <SelectItem value="INCOME">{t('typeIncome')}</SelectItem>

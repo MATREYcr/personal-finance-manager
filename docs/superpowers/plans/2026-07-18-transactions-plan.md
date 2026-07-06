@@ -20,6 +20,7 @@
 - All routes live under `src/app/[locale]/...`. All user-facing text uses `next-intl` (`useTranslations` in Client Components) under this feature's own `Transactions` namespace — no hardcoded strings. All styling uses shadcn's theme-aware Tailwind tokens (never hardcoded colors).
 - This project's shadcn components (`Dialog`, `Sheet`, etc.) are built on `@base-ui/react`, not Radix — there is no `asChild` prop. To compose a trigger with a custom element, pass it via the `render` prop instead: `<DialogTrigger render={trigger} />` (self-closing; `DialogTrigger`'s own children, if any, would override `trigger`'s children, so leave it childless when `trigger` already carries its own content). `trigger`'s type must be `React.ReactElement`, not the wider `React.ReactNode` — `render` only accepts an element or a render function.
 - `next.config.ts` now has `cacheComponents: true` (enabled during Categories Task 3 for `'use cache'` queries). Every Server Component page that calls `getTranslations` or otherwise reads the request locale — not just this plan's `TransactionsPage` — must call `setRequestLocale(locale)` itself before doing so; the root `[locale]/layout.tsx`'s call is not sufficient on its own. Skipping this doesn't just warn — it fails `npm run build` outright with "Uncached data was accessed outside of `<Suspense>`".
+- base-ui's `<SelectValue>` renders the raw `value` by default (confirmed in Base UI's own docs), not the corresponding `SelectItem`'s label — a bare `<SelectValue />` on an enum select shows the literal `EXPENSE`/`INCOME` string, and on a category-id select shows the raw id itself. Always pass a children render-callback that maps the value to the correct label (translated for enums, looked up by id for categories), as this plan's code samples already do.
 
 ## Prerequisites (from Foundation + Categories, already merged)
 
@@ -348,8 +349,9 @@ export async function updateTransaction(input: z.infer<typeof updateTransactionI
   return transaction
 }
 
-export async function deleteTransaction(id: string) {
+export async function deleteTransaction(rawId: string) {
   const session = await requireSession()
+  const id = z.string().min(1).parse(rawId)
   await db.transaction.delete({ where: { id, userId: session.user.id } })
   updateTag('transactions')
 }
@@ -538,7 +540,17 @@ export function TransactionFilters({
         value={filters.type ?? 'ALL'}
         onValueChange={(v) => onChange({ ...filters, type: v === 'ALL' ? undefined : (v as 'EXPENSE' | 'INCOME') })}
       >
-        <SelectTrigger className="w-full sm:w-40"><SelectValue placeholder={t('filterAllTypes')} /></SelectTrigger>
+        <SelectTrigger className="w-full sm:w-40">
+          {/* base-ui's SelectValue renders the raw value by default (confirmed
+              in Base UI's own docs) — a children render-callback is required
+              to map it to a translated label, same fix as Categories'
+              CategoryFormDialog. */}
+          <SelectValue placeholder={t('filterAllTypes')}>
+            {(value: string | null) =>
+              value === 'EXPENSE' ? tCategories('typeExpense') : value === 'INCOME' ? tCategories('typeIncome') : t('filterAllTypes')
+            }
+          </SelectValue>
+        </SelectTrigger>
         <SelectContent>
           <SelectItem value="ALL">{t('filterAllTypes')}</SelectItem>
           <SelectItem value="EXPENSE">{tCategories('typeExpense')}</SelectItem>
@@ -550,7 +562,19 @@ export function TransactionFilters({
         value={filters.categoryId ?? 'ALL'}
         onValueChange={(v) => onChange({ ...filters, categoryId: v === 'ALL' ? undefined : v })}
       >
-        <SelectTrigger className="w-full sm:w-48"><SelectValue placeholder={t('filterAllCategories')} /></SelectTrigger>
+        <SelectTrigger className="w-full sm:w-48">
+          {/* Same default-raw-value issue as the type select above, but here
+              the raw value is a category id — without this callback the
+              trigger would literally show the category's id string instead
+              of its name. */}
+          <SelectValue placeholder={t('filterAllCategories')}>
+            {(value: string | null) =>
+              !value || value === 'ALL'
+                ? t('filterAllCategories')
+                : ((categories as Category[] | undefined)?.find((c) => c.id === value)?.name ?? value)
+            }
+          </SelectValue>
+        </SelectTrigger>
         <SelectContent>
           <SelectItem value="ALL">{t('filterAllCategories')}</SelectItem>
           {(categories as Category[] | undefined)?.map((c) => (
@@ -581,6 +605,7 @@ export function TransactionFilters({
 ```typescript
 // src/features/transactions/components/TransactionFormDialog.tsx
 'use client'
+import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -604,6 +629,17 @@ const schema = z.object({
 })
 type FormValues = z.infer<typeof schema>
 
+function defaultValuesFor(transaction?: TransactionWithCategory): FormValues {
+  return {
+    categoryId: transaction?.categoryId ?? '',
+    type: transaction?.type ?? 'EXPENSE',
+    amount: transaction ? Number(transaction.amount) : 0,
+    currency: transaction?.currency ?? 'USD',
+    date: transaction ? transaction.date.toString().slice(0, 10) : new Date().toISOString().slice(0, 10),
+    note: transaction?.note ?? '',
+  }
+}
+
 export function TransactionFormDialog({
   transaction,
   trigger,
@@ -616,17 +652,21 @@ export function TransactionFormDialog({
   const tCommon = useTranslations('Common.actions')
   const { data: categories } = useCategories()
   const { create, update } = useTransactionMutations()
+  const [open, setOpen] = useState(false)
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
-    defaultValues: {
-      categoryId: transaction?.categoryId ?? '',
-      type: transaction?.type ?? 'EXPENSE',
-      amount: transaction ? Number(transaction.amount) : 0,
-      currency: transaction?.currency ?? 'USD',
-      date: transaction ? transaction.date.toString().slice(0, 10) : new Date().toISOString().slice(0, 10),
-      note: transaction?.note ?? '',
-    },
+    defaultValues: defaultValuesFor(transaction),
   })
+
+  function handleOpenChange(next: boolean) {
+    // Re-sync the form to this row's current values (or a blank slate for
+    // "new") every time the dialog opens — react-hook-form's defaultValues is
+    // only read once at mount, so without this a persistent row instance
+    // would keep showing whatever it first opened with. Same fix as
+    // Categories' CategoryFormDialog.
+    if (next) form.reset(defaultValuesFor(transaction))
+    setOpen(next)
+  }
 
   async function onSubmit(values: FormValues) {
     if (transaction) {
@@ -634,10 +674,11 @@ export function TransactionFormDialog({
     } else {
       await create.mutateAsync(values)
     }
+    setOpen(false)
   }
 
   return (
-    <Dialog>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger render={trigger} />
       <DialogContent>
         <DialogHeader>
@@ -648,7 +689,14 @@ export function TransactionFormDialog({
             defaultValue={form.getValues('type')}
             onValueChange={(v) => form.setValue('type', v as 'EXPENSE' | 'INCOME')}
           >
-            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectTrigger>
+              {/* base-ui's SelectValue renders the raw value by default — a
+                  children render-callback is required to map it to a
+                  translated label, same fix as Categories' CategoryFormDialog. */}
+              <SelectValue>
+                {(value: string | null) => (value === 'EXPENSE' ? tCategories('typeExpense') : tCategories('typeIncome'))}
+              </SelectValue>
+            </SelectTrigger>
             <SelectContent>
               <SelectItem value="EXPENSE">{tCategories('typeExpense')}</SelectItem>
               <SelectItem value="INCOME">{tCategories('typeIncome')}</SelectItem>
@@ -658,7 +706,16 @@ export function TransactionFormDialog({
             defaultValue={form.getValues('categoryId')}
             onValueChange={(v) => form.setValue('categoryId', v)}
           >
-            <SelectTrigger><SelectValue placeholder={t('categoryPlaceholder')} /></SelectTrigger>
+            <SelectTrigger>
+              {/* Same default-raw-value issue as the type select above, but
+                  here the raw value is a category id — without this callback
+                  the trigger would literally show the category's id string. */}
+              <SelectValue placeholder={t('categoryPlaceholder')}>
+                {(value: string | null) =>
+                  (categories as Category[] | undefined)?.find((c) => c.id === value)?.name ?? t('categoryPlaceholder')
+                }
+              </SelectValue>
+            </SelectTrigger>
             <SelectContent>
               {(categories as Category[] | undefined)?.map((c) => (
                 <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
