@@ -14,7 +14,7 @@
 
 - Package manager is npm.
 - Every Server Action validates input with Zod and scopes by the authenticated `userId`.
-- `queries.ts` uses `'use cache'` + `cacheTag('transactions')`; `actions.ts` mutations call `revalidateTag('transactions')` after a successful write.
+- `queries.ts` uses `'use cache'` + `cacheTag('transactions')`; `actions.ts` mutations call **`updateTag('transactions')`** (not `revalidateTag`) after a successful write — `updateTag` is Next.js 16's read-your-own-writes primitive (immediate cache expiry) and is only usable from Server Actions. Route Handlers (cron endpoints in the Recurring Transactions and Currency/FX/Dashboard plans) must keep using `revalidateTag`, since `updateTag` throws outside a Server Action.
 - A transaction's `categoryId` must be verified to belong to the current user before create/update — never trust a client-supplied id.
 - Do not set or expose `recurringId` anywhere in this plan — it stays null until the Recurring Transactions plan.
 - All routes live under `src/app/[locale]/...`. All user-facing text uses `next-intl` (`useTranslations` in Client Components) under this feature's own `Transactions` namespace — no hardcoded strings. All styling uses shadcn's theme-aware Tailwind tokens (never hardcoded colors).
@@ -165,19 +165,25 @@ Expected: PASS (6 tests).
 
 - [ ] **Step 7: Write the failing test for the ownership check**
 
+`vi.mock()` factories are hoisted above top-level `const` declarations by
+Vitest, so any mock object a factory references must be created via
+`vi.hoisted()` — otherwise it throws "Cannot access before initialization".
+
 ```typescript
 // src/features/transactions/actions.test.ts
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-const mockRequireSession = vi.fn()
-vi.mock('@/lib/auth/session', () => ({ requireSession: () => mockRequireSession() }))
+const { mockRequireSession, mockDb } = vi.hoisted(() => ({
+  mockRequireSession: vi.fn(),
+  mockDb: {
+    transaction: { create: vi.fn(), update: vi.fn(), delete: vi.fn() },
+    category: { findFirst: vi.fn() },
+  },
+}))
 
-const mockDb = {
-  transaction: { create: vi.fn(), update: vi.fn(), delete: vi.fn() },
-  category: { findFirst: vi.fn() },
-}
+vi.mock('@/lib/auth/session', () => ({ requireSession: () => mockRequireSession() }))
 vi.mock('@/lib/db', () => ({ db: mockDb }))
-vi.mock('next/cache', () => ({ revalidateTag: vi.fn() }))
+vi.mock('next/cache', () => ({ updateTag: vi.fn() }))
 
 import { createTransaction } from './actions'
 
@@ -289,7 +295,7 @@ export async function getTransactions(
 // src/features/transactions/actions.ts
 'use server'
 import { z } from 'zod'
-import { revalidateTag } from 'next/cache'
+import { updateTag } from 'next/cache'
 import { db } from '@/lib/db'
 import { requireSession } from '@/lib/auth/session'
 
@@ -317,7 +323,7 @@ export async function createTransaction(input: z.infer<typeof transactionInputSc
     data: { userId: session.user.id, categoryId, type, amount, currency, date: new Date(date), note },
   })
 
-  revalidateTag('transactions')
+  updateTag('transactions')
   return transaction
 }
 
@@ -336,14 +342,14 @@ export async function updateTransaction(input: z.infer<typeof updateTransactionI
     data: { categoryId, type, amount, currency, date: new Date(date), note },
   })
 
-  revalidateTag('transactions')
+  updateTag('transactions')
   return transaction
 }
 
 export async function deleteTransaction(id: string) {
   const session = await requireSession()
   await db.transaction.delete({ where: { id, userId: session.user.id } })
-  revalidateTag('transactions')
+  updateTag('transactions')
 }
 ```
 

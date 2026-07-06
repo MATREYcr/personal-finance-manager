@@ -14,7 +14,7 @@
 
 - Package manager is npm.
 - Every Server Action validates input with Zod and scopes by the authenticated `userId` — never trust a client-supplied user id.
-- `queries.ts` uses `'use cache'` + `cacheTag('categories')`; `actions.ts` mutations call `revalidateTag('categories')` after a successful write.
+- `queries.ts` uses `'use cache'` + `cacheTag('categories')`; `actions.ts` mutations call **`updateTag('categories')`** (not `revalidateTag`) after a successful write — `updateTag` is Next.js 16's read-your-own-writes primitive, immediately expiring the cache instead of `revalidateTag`'s stale-while-revalidate behavior, and it's only usable from Server Actions (never from a Route Handler — cron endpoints in later plans must keep using `revalidateTag`).
 - Category deletion is blocked (friendly error) while any `Transaction` or `RecurringTransaction` references it — this plan can only test the empty-reference case for transactions/recurring counts (those tables have no real feature yet), but the guard logic and its test must be written now since Categories ships before Transactions.
 - All routes live under `src/app/[locale]/...`. All user-facing text uses `next-intl` (`useTranslations` in Client Components, `getTranslations` in Server Actions/Components) under this feature's own `Categories` namespace — no hardcoded strings. All styling uses shadcn's theme-aware Tailwind tokens (never hardcoded colors) so it works in both light and dark mode.
 
@@ -209,23 +209,28 @@ export type { Category }
 
 - [ ] **Step 3: Write the failing test for the deletion guard**
 
+`vi.mock()` factories are hoisted above top-level `const` declarations by
+Vitest, so any mock object a factory references must be created via
+`vi.hoisted()` — otherwise it throws "Cannot access before initialization".
+
 ```typescript
 // src/features/categories/actions.test.ts
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-const mockRequireSession = vi.fn()
+const { mockRequireSession, mockGetTranslations, mockDb } = vi.hoisted(() => ({
+  mockRequireSession: vi.fn(),
+  mockGetTranslations: vi.fn(),
+  mockDb: {
+    category: { create: vi.fn(), update: vi.fn(), delete: vi.fn() },
+    transaction: { count: vi.fn() },
+    recurringTransaction: { count: vi.fn() },
+  },
+}))
+
 vi.mock('@/lib/auth/session', () => ({ requireSession: () => mockRequireSession() }))
-
-const mockGetTranslations = vi.fn()
 vi.mock('next-intl/server', () => ({ getTranslations: () => mockGetTranslations() }))
-
-const mockDb = {
-  category: { create: vi.fn(), update: vi.fn(), delete: vi.fn() },
-  transaction: { count: vi.fn() },
-  recurringTransaction: { count: vi.fn() },
-}
 vi.mock('@/lib/db', () => ({ db: mockDb }))
-vi.mock('next/cache', () => ({ revalidateTag: vi.fn() }))
+vi.mock('next/cache', () => ({ updateTag: vi.fn() }))
 
 import { deleteCategory } from './actions'
 
@@ -301,7 +306,7 @@ export async function getCategories(userId: string) {
 // src/features/categories/actions.ts
 'use server'
 import { z } from 'zod'
-import { revalidateTag } from 'next/cache'
+import { updateTag } from 'next/cache'
 import { getTranslations } from 'next-intl/server'
 import { db } from '@/lib/db'
 import { requireSession } from '@/lib/auth/session'
@@ -319,7 +324,7 @@ export async function createCategory(input: z.infer<typeof categoryInputSchema>)
     data: { userId: session.user.id, name, type },
   })
 
-  revalidateTag('categories')
+  updateTag('categories')
   return category
 }
 
@@ -336,7 +341,7 @@ export async function updateCategory(input: z.infer<typeof updateCategoryInputSc
     data: { name, type },
   })
 
-  revalidateTag('categories')
+  updateTag('categories')
   return category
 }
 
@@ -354,7 +359,7 @@ export async function deleteCategory(categoryId: string) {
   }
 
   await db.category.delete({ where: { id: categoryId, userId: session.user.id } })
-  revalidateTag('categories')
+  updateTag('categories')
 }
 ```
 

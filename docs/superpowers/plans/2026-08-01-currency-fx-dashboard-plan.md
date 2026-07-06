@@ -329,10 +329,15 @@ git commit -m "feat(fx): add daily exchange rate refresh cron job"
 // src/features/settings/actions.test.ts
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-const mockRequireSession = vi.fn()
-vi.mock('@/lib/auth/session', () => ({ requireSession: () => mockRequireSession() }))
+// vi.mock factories are hoisted above top-level const declarations, so the
+// mock objects they reference must be created via vi.hoisted() to avoid a
+// "Cannot access before initialization" error.
+const { mockRequireSession, mockDb } = vi.hoisted(() => ({
+  mockRequireSession: vi.fn(),
+  mockDb: { user: { update: vi.fn() } },
+}))
 
-const mockDb = { user: { update: vi.fn() } }
+vi.mock('@/lib/auth/session', () => ({ requireSession: () => mockRequireSession() }))
 vi.mock('@/lib/db', () => ({ db: mockDb }))
 
 import { updateBaseCurrency } from './actions'
