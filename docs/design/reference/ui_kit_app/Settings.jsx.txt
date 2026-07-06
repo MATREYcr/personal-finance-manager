@@ -1,0 +1,27 @@
+const { useState } = React;
+
+function Settings({ Button, Input, Label, Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter }) {
+  const [currency, setCurrency] = useState('USD');
+  const [saved, setSaved] = useState(false);
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20, maxWidth: 560 }}>
+      <h1 style={{ fontSize: 'var(--text-2xl)', fontWeight: 700 }}>Settings</h1>
+      <Card>
+        <CardHeader>
+          <CardTitle>Base currency</CardTitle>
+          <CardDescription>All dashboard figures are converted into this currency.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Label htmlFor="base-currency">Currency code</Label>
+          <Input id="base-currency" value={currency} onChange={(e) => { setCurrency(e.target.value.toUpperCase()); setSaved(false); }} maxLength={3} style={{ maxWidth: 140, textTransform: 'uppercase' }} />
+        </CardContent>
+        <CardFooter style={{ alignItems: 'center', gap: 12 }}>
+          <Button onClick={() => setSaved(true)}>Save</Button>
+          {saved && <span style={{ fontSize: 'var(--text-sm)', color: 'var(--positive)' }}>Saved</span>}
+        </CardFooter>
+      </Card>
+    </div>
+  );
+}
+window.Settings = Settings;

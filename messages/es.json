@@ -1,0 +1,36 @@
+{
+  "Common": {
+    "appName": "Gestor de Finanzas Personales",
+    "loading": "Cargando…",
+    "toggleTheme": "Cambiar tema",
+    "nav": {
+      "dashboard": "Panel",
+      "transactions": "Transacciones",
+      "categories": "Categorías",
+      "recurring": "Recurrentes",
+      "settings": "Configuración",
+      "signOut": "Cerrar sesión",
+      "menu": "Menú"
+    },
+    "actions": {
+      "save": "Guardar",
+      "edit": "Editar",
+      "delete": "Eliminar",
+      "cancel": "Cancelar",
+      "new": "Nuevo"
+    }
+  },
+  "Auth": {
+    "brandName": "Gestor de Finanzas Personales",
+    "headline": "Sabé a dónde va tu dinero.",
+    "signInTitle": "Iniciar sesión",
+    "signUpTitle": "Crear tu cuenta",
+    "name": "Nombre",
+    "email": "Email",
+    "password": "Contraseña",
+    "signInSubmit": "Entrar",
+    "signUpSubmit": "Registrarme",
+    "signInError": "No se pudo iniciar sesión",
+    "signUpError": "No se pudo crear la cuenta"
+  }
+}

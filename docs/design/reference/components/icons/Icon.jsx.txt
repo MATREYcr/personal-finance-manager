@@ -1,0 +1,19 @@
+import React, { useEffect, useRef } from 'react';
+
+/**
+ * Icon — thin wrapper around the Lucide icon set (loaded via CDN in each
+ * page's <helmet>). Pass the kebab-case Lucide name, e.g. "arrow-up-right".
+ */
+export function Icon({ name, size = 18, style }) {
+  const ref = useRef(null);
+  useEffect(() => {
+    if (window.lucide && ref.current) {
+      ref.current.innerHTML = '';
+      const el = document.createElement('i');
+      el.setAttribute('data-lucide', name);
+      ref.current.appendChild(el);
+      window.lucide.createIcons({ nameAttr: 'data-lucide', attrs: { width: size, height: size } });
+    }
+  }, [name, size]);
+  return <span ref={ref} style={{ display: 'inline-flex', color: 'currentColor', ...style }} />;
+}

@@ -1,0 +1,48 @@
+import React, { useState } from 'react';
+
+/**
+ * Tabs — segmented control for period switcher (Week/Month/Year) and similar.
+ */
+export function Tabs({ tabs = [], value, onChange, style }) {
+  const [hovered, setHovered] = React.useState(null);
+  return (
+    <div
+      style={{
+        display: 'inline-flex',
+        background: 'var(--surface-sunken)',
+        borderRadius: 'var(--radius-md)',
+        padding: 4,
+        gap: 2,
+        ...style,
+      }}
+    >
+      {tabs.map((t) => {
+        const active = t.value === value;
+        const hover = hovered === t.value;
+        return (
+          <button
+            key={t.value}
+            onClick={() => onChange && onChange(t.value)}
+            onMouseEnter={() => setHovered(t.value)}
+            onMouseLeave={() => setHovered(null)}
+            style={{
+              border: 'none',
+              cursor: 'pointer',
+              padding: '5px 11px',
+              borderRadius: 'var(--radius-sm)',
+              fontFamily: 'var(--font-heading)',
+              fontSize: 'var(--text-sm)',
+              fontWeight: 600,
+              background: active ? 'var(--surface-card)' : (hover ? 'var(--border-default)' : 'var(--surface-sunken)'),
+              color: active ? 'var(--accent)' : 'var(--text-secondary)',
+              boxShadow: active ? 'var(--shadow-sm)' : 'none',
+              transition: 'all 120ms ease',
+            }}
+          >
+            {t.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}

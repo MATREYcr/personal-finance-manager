@@ -1,0 +1,74 @@
+import React, { useState } from 'react';
+
+/**
+ * Table — generous-row data table matching shadcn/ui Table with right-aligned,
+ * tabular-nums amount columns per the brand's numbers-forward stance.
+ */
+export function Table({ children, style }) {
+  return (
+    <div style={{ width: '100%', overflowX: 'auto', border: '1px solid var(--border-default)', borderRadius: 'var(--radius-lg)', background: 'var(--surface-card)' }}>
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: 'var(--font-body)', ...style }}>{children}</table>
+    </div>
+  );
+}
+
+export function TableHead({ children }) {
+  return <thead>{children}</thead>;
+}
+
+export function TableHeadRow({ children }) {
+  return <tr style={{ borderBottom: '1px solid var(--border-default)' }}>{children}</tr>;
+}
+
+export function TableHeaderCell({ children, align = 'left' }) {
+  return (
+    <th
+      style={{
+        textAlign: align,
+        padding: '0 16px',
+        height: 40,
+        fontSize: 'var(--text-xs)',
+        fontWeight: 600,
+        color: 'var(--text-muted)',
+        textTransform: 'uppercase',
+        letterSpacing: 'var(--tracking-wide)',
+      }}
+    >
+      {children}
+    </th>
+  );
+}
+
+export function TableBody({ children }) {
+  return <tbody>{children}</tbody>;
+}
+
+export function TableRow({ children, style }) {
+  const [hover, setHover] = useState(false);
+  return (
+    <tr
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      style={{ borderTop: '1px solid var(--border-subtle)', height: 56, background: hover ? 'var(--surface-hover)' : 'transparent', transition: 'background 100ms ease', ...style }}
+    >
+      {children}
+    </tr>
+  );
+}
+
+export function TableCell({ children, align = 'left', amount = false, style }) {
+  return (
+    <td
+      className={amount ? 'amount' : undefined}
+      style={{
+        textAlign: align,
+        padding: '0 16px',
+        fontSize: 'var(--text-base)',
+        color: 'var(--text-primary)',
+        ...style,
+      }}
+    >
+      {children}
+    </td>
+  );
+}

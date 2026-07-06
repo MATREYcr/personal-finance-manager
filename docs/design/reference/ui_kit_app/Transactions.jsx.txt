@@ -1,0 +1,124 @@
+const { useState } = React;
+
+const initialTx = [
+  { id: 1, date: '2026-07-01', category: 'Salary', type: 'Income', amount: '3,000.00', currency: 'USD' },
+  { id: 2, date: '2026-07-02', category: 'Market', type: 'Expense', amount: '84.30', currency: 'USD' },
+  { id: 3, date: '2026-07-03', category: 'Transport', type: 'Expense', amount: '42.00', currency: 'EUR' },
+  { id: 4, date: '2026-07-04', category: 'Entertainment', type: 'Expense', amount: '25.99', currency: 'USD' },
+];
+
+const categoryOptions = [
+  { value: 'all', label: 'All categories' },
+  { value: 'market', label: 'Market' },
+  { value: 'transport', label: 'Transport' },
+  { value: 'rent', label: 'Rent' },
+  { value: 'utilities', label: 'Utilities' },
+  { value: 'entertainment', label: 'Entertainment' },
+  { value: 'health', label: 'Health' },
+  { value: 'salary', label: 'Salary' },
+];
+
+function Transactions({ Button, Input, Label, Select, Badge, Dialog, Table, TableHead, TableHeadRow, TableHeaderCell, TableBody, TableRow, TableCell, dialogOpenDefault }) {
+  const [type, setType] = useState('all');
+  const [category, setCategory] = useState('all');
+  const [dialogOpen, setDialogOpen] = useState(!!dialogOpenDefault);
+  const [formType, setFormType] = useState('expense');
+  const [formCategory, setFormCategory] = useState('market');
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20, maxWidth: 'var(--content-max-width)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
+        <h1 style={{ fontSize: 'var(--text-2xl)', fontWeight: 700 }}>Transactions</h1>
+        <Button onClick={() => setDialogOpen(true)}>
+          <i data-lucide="plus" style={{ width: 16, height: 16 }}></i>
+          New transaction
+        </Button>
+      </div>
+
+      <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+        <div style={{ width: 160 }}>
+          <Label>Type</Label>
+          <Select value={type} onChange={setType} options={[{ value: 'all', label: 'All' }, { value: 'expense', label: 'Expense' }, { value: 'income', label: 'Income' }]} />
+        </div>
+        <div style={{ width: 200 }}>
+          <Label>Category</Label>
+          <Select value={category} onChange={setCategory} options={categoryOptions} />
+        </div>
+        <div style={{ width: 160 }}>
+          <Label>Date from</Label>
+          <Input type="date" />
+        </div>
+        <div style={{ width: 160 }}>
+          <Label>Date to</Label>
+          <Input type="date" />
+        </div>
+      </div>
+
+      <Table>
+        <TableHead><TableHeadRow>
+          <TableHeaderCell>Date</TableHeaderCell>
+          <TableHeaderCell>Category</TableHeaderCell>
+          <TableHeaderCell>Type</TableHeaderCell>
+          <TableHeaderCell align="right">Amount</TableHeaderCell>
+          <TableHeaderCell align="right">Actions</TableHeaderCell>
+        </TableHeadRow></TableHead>
+        <TableBody>
+          {initialTx.map((t) => (
+            <TableRow key={t.id}>
+              <TableCell style={{ color: 'var(--text-secondary)' }}>{t.date}</TableCell>
+              <TableCell>{t.category}</TableCell>
+              <TableCell><Badge variant={t.type === 'Income' ? 'positive' : 'negative'}>{t.type}</Badge></TableCell>
+              <TableCell align="right" amount style={{ fontWeight: 600, color: t.type === 'Income' ? 'var(--positive)' : 'var(--negative)' }}>
+                {t.type === 'Income' ? '+' : '−'}{t.amount} {t.currency}
+              </TableCell>
+              <TableCell align="right">
+                <div style={{ display: 'flex', gap: 4, justifyContent: 'flex-end' }}>
+                  <Button variant="default" size="icon" aria-label="Edit" style={{ background: 'var(--accent)', borderColor: 'var(--accent)', color: '#fff' }}><i data-lucide="pencil" style={{ width: 15, height: 15 }}></i></Button>
+                  <Button variant="default" size="icon" aria-label="Delete" style={{ background: 'var(--negative)', borderColor: 'var(--negative)', color: '#fff' }}><i data-lucide="trash-2" style={{ width: 15, height: 15 }}></i></Button>
+                </div>
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+
+      <Dialog
+        open={dialogOpen}
+        onClose={() => setDialogOpen(false)}
+        title="New transaction"
+        description="Log a manual expense or income entry."
+        footer={<><Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button><Button onClick={() => setDialogOpen(false)}>Save</Button></>}
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <div>
+            <Label>Type</Label>
+            <Select value={formType} onChange={setFormType} options={[{ value: 'expense', label: 'Expense' }, { value: 'income', label: 'Income' }]} />
+          </div>
+          <div>
+            <Label>Category</Label>
+            <Select value={formCategory} onChange={setFormCategory} options={categoryOptions.filter(o => o.value !== 'all')} />
+          </div>
+          <div style={{ display: 'flex', gap: 12 }}>
+            <div style={{ flex: 2 }}>
+              <Label>Amount</Label>
+              <Input type="number" placeholder="0.00" />
+            </div>
+            <div style={{ flex: 1 }}>
+              <Label>Currency</Label>
+              <Input placeholder="USD" maxLength={3} style={{ textTransform: 'uppercase' }} />
+            </div>
+          </div>
+          <div>
+            <Label>Date</Label>
+            <Input type="date" defaultValue="2026-07-05" />
+          </div>
+          <div>
+            <Label>Note (optional)</Label>
+            <Input placeholder="Add a note…" />
+          </div>
+        </div>
+      </Dialog>
+    </div>
+  );
+}
+window.Transactions = Transactions;

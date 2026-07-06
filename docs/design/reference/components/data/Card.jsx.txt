@@ -1,0 +1,45 @@
+import React from 'react';
+
+/**
+ * Card — content container. Matches shadcn/ui Card composition (Header/Title/Content).
+ */
+export function Card({ children, style }) {
+  return (
+    <div
+      style={{
+        background: 'var(--surface-card)',
+        border: '1px solid var(--border-default)',
+        borderRadius: 'var(--radius-lg)',
+        boxShadow: 'var(--shadow-xs)',
+        overflow: 'hidden',
+        ...style,
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
+export function CardHeader({ children, style }) {
+  return <div style={{ padding: '20px 20px 0', ...style }}>{children}</div>;
+}
+
+export function CardTitle({ children, style }) {
+  return (
+    <h3 style={{ fontFamily: 'var(--font-heading)', fontSize: 'var(--text-lg)', fontWeight: 600, color: 'var(--text-primary)', margin: 0, ...style }}>
+      {children}
+    </h3>
+  );
+}
+
+export function CardDescription({ children, style }) {
+  return <p style={{ fontSize: 'var(--text-sm)', color: 'var(--text-muted)', margin: '4px 0 0', ...style }}>{children}</p>;
+}
+
+export function CardContent({ children, style }) {
+  return <div style={{ padding: 20, ...style }}>{children}</div>;
+}
+
+export function CardFooter({ children, style }) {
+  return <div style={{ padding: '0 20px 20px', display: 'flex', gap: 8, ...style }}>{children}</div>;
+}

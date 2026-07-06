@@ -1,0 +1,36 @@
+{
+  "Common": {
+    "appName": "Personal Finance Manager",
+    "loading": "Loading…",
+    "toggleTheme": "Toggle theme",
+    "nav": {
+      "dashboard": "Dashboard",
+      "transactions": "Transactions",
+      "categories": "Categories",
+      "recurring": "Recurring",
+      "settings": "Settings",
+      "signOut": "Sign out",
+      "menu": "Menu"
+    },
+    "actions": {
+      "save": "Save",
+      "edit": "Edit",
+      "delete": "Delete",
+      "cancel": "Cancel",
+      "new": "New"
+    }
+  },
+  "Auth": {
+    "brandName": "Personal Finance Manager",
+    "headline": "Know where your money goes.",
+    "signInTitle": "Sign in",
+    "signUpTitle": "Create your account",
+    "name": "Name",
+    "email": "Email",
+    "password": "Password",
+    "signInSubmit": "Sign in",
+    "signUpSubmit": "Sign up",
+    "signInError": "Could not sign in",
+    "signUpError": "Could not sign up"
+  }
+}

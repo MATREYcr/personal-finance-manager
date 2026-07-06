@@ -1,0 +1,24 @@
+import React from 'react';
+
+/**
+ * Label — form field label. Small, medium weight, secondary text color.
+ */
+export function Label({ htmlFor, children, style, ...rest }) {
+  return (
+    <label
+      htmlFor={htmlFor}
+      style={{
+        display: 'block',
+        fontSize: 'var(--text-sm)',
+        fontWeight: 600,
+        color: 'var(--text-secondary)',
+        marginBottom: 6,
+        fontFamily: 'var(--font-heading)',
+        ...style,
+      }}
+      {...rest}
+    >
+      {children}
+    </label>
+  );
+}

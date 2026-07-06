@@ -1,0 +1,7 @@
+export interface TableProps { children?: React.ReactNode; style?: React.CSSProperties; }
+export interface TableHeadProps { children?: React.ReactNode; }
+export interface TableHeadRowProps { children?: React.ReactNode; }
+export interface TableHeaderCellProps { children?: React.ReactNode; align?: 'left' | 'right' | 'center'; }
+export interface TableBodyProps { children?: React.ReactNode; }
+export interface TableRowProps { children?: React.ReactNode; style?: React.CSSProperties; }
+export interface TableCellProps { children?: React.ReactNode; align?: 'left' | 'right' | 'center'; amount?: boolean; style?: React.CSSProperties; }

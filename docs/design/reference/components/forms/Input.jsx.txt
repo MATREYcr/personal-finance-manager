@@ -1,0 +1,38 @@
+import React, { useState } from 'react';
+
+/**
+ * Input — single-line text field. Border + focus ring match the reference:
+ * input-gray border at rest, accent border + soft ring on focus.
+ */
+export function Input({ type = 'text', placeholder, value, onChange, disabled = false, style, ...rest }) {
+  const [focused, setFocused] = useState(false);
+  return (
+    <input
+      type={type}
+      placeholder={placeholder}
+      value={value}
+      onChange={onChange}
+      disabled={disabled}
+      onFocus={() => setFocused(true)}
+      onBlur={() => setFocused(false)}
+      style={{
+        height: 36,
+        width: '100%',
+        padding: '0 12px',
+        fontSize: 'var(--text-base)',
+        fontFamily: 'var(--font-body)',
+        color: 'var(--text-primary)',
+        background: disabled ? 'var(--surface-sunken)' : 'var(--surface-card)',
+        border: `1px solid ${focused ? 'var(--accent)' : 'var(--border-strong)'}`,
+        borderRadius: 'var(--radius-md)',
+        outline: 'none',
+        boxShadow: focused ? 'var(--shadow-focus-ring)' : 'none',
+        opacity: disabled ? 0.6 : 1,
+        boxSizing: 'border-box',
+        transition: 'border-color 120ms ease, box-shadow 120ms ease',
+        ...style,
+      }}
+      {...rest}
+    />
+  );
+}

@@ -1,0 +1,175 @@
+/**
+ * NavShell — persistent left sidebar (desktop) collapsing to a top bar +
+ * drawer (mobile, <768px). Composes the app chrome around a content area.
+ */
+const NAV_LABELS = {
+  en: { dashboard: 'Dashboard', transactions: 'Transactions', categories: 'Categories', recurring: 'Recurring', settings: 'Settings', signOut: 'Sign out' },
+  es: { dashboard: 'Panel', transactions: 'Transacciones', categories: 'Categorías', recurring: 'Recurrentes', settings: 'Configuración', signOut: 'Cerrar sesión' },
+};
+
+function NavShell({ active, onNavigate, mobile, mobileOpen, onToggleMobile, theme, onToggleTheme, lang = 'en', onToggleLang, user, children }) {
+  const t = NAV_LABELS[lang] || NAV_LABELS.en;
+  const u = user || { name: 'Jane Doe', email: 'jane@doe.com' };
+  const initials = u.name.split(' ').map((n) => n[0]).slice(0, 2).join('').toUpperCase();
+
+  const ThemeToggle = () => (
+    <button
+      onClick={onToggleTheme}
+      title="Toggle theme"
+      aria-label="Toggle theme"
+      style={{ display: 'inline-flex', width: 34, height: 34, alignItems: 'center', justifyContent: 'center', border: '1px solid var(--border-default)', background: 'var(--surface-card)', borderRadius: 'var(--radius-md)', color: 'var(--text-secondary)', flexShrink: 0 }}
+    >
+      <i data-lucide={theme === 'dark' ? 'moon' : 'sun'} style={{ width: 17, height: 17 }}></i>
+    </button>
+  );
+
+  const LangToggle = () => (
+    <div style={{ display: 'flex', background: 'var(--surface-sunken)', border: '1px solid var(--border-default)', borderRadius: 'var(--radius-md)', padding: 3, flexShrink: 0 }}>
+      {['en', 'es'].map((l) => (
+        <button
+          key={l}
+          onClick={() => onToggleLang && onToggleLang(l)}
+          style={{
+            border: 'none',
+            borderRadius: 'var(--radius-sm)',
+            padding: '5px 10px',
+            fontSize: 'var(--text-sm)',
+            fontWeight: 700,
+            fontFamily: 'var(--font-heading)',
+            cursor: 'pointer',
+            background: lang === l ? 'var(--surface-card)' : 'transparent',
+            color: lang === l ? 'var(--text-primary)' : 'var(--text-secondary)',
+            boxShadow: lang === l ? 'var(--shadow-sm)' : 'none',
+          }}
+        >
+          {l.toUpperCase()}
+        </button>
+      ))}
+    </div>
+  );
+
+  const UserChip = ({ compact, topbar }) => {
+    if (topbar) {
+      return (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{ width: 32, height: 32, borderRadius: 'var(--radius-full)', background: 'linear-gradient(135deg, var(--accent), #4f6df5)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, fontFamily: 'var(--font-heading)', flexShrink: 0 }}>
+            {initials}
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.25 }}>
+            <span style={{ fontSize: 'var(--text-sm)', fontWeight: 600, color: 'var(--text-primary)' }}>{u.name}</span>
+            <span style={{ fontSize: 'var(--text-xs)', color: 'var(--accent)', fontWeight: 500 }}>{u.email}</span>
+          </div>
+          <button
+            title={t.signOut}
+            aria-label={t.signOut}
+            style={{ border: '1px solid var(--border-default)', background: 'var(--surface-card)', color: 'var(--text-secondary)', cursor: 'pointer', width: 34, height: 34, borderRadius: 'var(--radius-md)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginLeft: 8 }}
+          >
+            <i data-lucide="log-out" style={{ width: 16, height: 16 }}></i>
+          </button>
+        </div>
+      );
+    }
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: compact ? '8px 10px' : '10px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-default)', background: 'var(--surface-sunken)' }}>
+        <div style={{ width: 32, height: 32, borderRadius: 'var(--radius-full)', background: 'linear-gradient(135deg, var(--accent), #4f6df5)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, fontFamily: 'var(--font-heading)', flexShrink: 0 }}>
+          {initials}
+        </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 'var(--text-sm)', fontWeight: 600, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{u.name}</div>
+          <div style={{ fontSize: 'var(--text-xs)', color: 'var(--accent)', fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{u.email}</div>
+        </div>
+        <button
+          title={t.signOut}
+          aria-label={t.signOut}
+          style={{ border: '1px solid var(--border-default)', background: 'var(--surface-card)', color: 'var(--text-secondary)', cursor: 'pointer', width: 32, height: 32, borderRadius: 'var(--radius-md)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
+        >
+          <i data-lucide="log-out" style={{ width: 15, height: 15 }}></i>
+        </button>
+      </div>
+    );
+  };
+
+  const items = [
+    { key: 'dashboard', label: t.dashboard, icon: 'layout-dashboard' },
+    { key: 'transactions', label: t.transactions, icon: 'receipt' },
+    { key: 'categories', label: t.categories, icon: 'tag' },
+    { key: 'recurring', label: t.recurring, icon: 'repeat' },
+    { key: 'settings', label: t.settings, icon: 'settings' },
+  ];
+
+  const NavLink = ({ item }) => {
+    const isActive = active === item.key;
+    return (
+      <button
+        onClick={() => onNavigate(item.key)}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 10,
+          width: '100%',
+          padding: '10px 14px',
+          border: 'none',
+          borderLeft: isActive ? '3px solid var(--accent)' : '3px solid transparent',
+          background: isActive ? 'var(--accent-subtle)' : 'transparent',
+          color: isActive ? 'var(--accent)' : 'var(--text-secondary)',
+          borderRadius: 'var(--radius-md)',
+          fontFamily: 'var(--font-heading)',
+          fontSize: 'var(--text-base)',
+          fontWeight: isActive ? 600 : 500,
+          cursor: 'pointer',
+          textAlign: 'left',
+        }}
+      >
+        <i data-lucide={item.icon} style={{ width: 18, height: 18, flexShrink: 0 }}></i>
+        {item.label}
+      </button>
+    );
+  };
+
+  if (mobile) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100%', background: 'var(--surface-page)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: 'var(--topbar-height)', padding: '0 16px', borderBottom: '1px solid var(--border-default)', background: 'var(--surface-card)', position: 'sticky', top: 0, zIndex: 30, gap: 8 }}>
+          <span style={{ fontFamily: 'var(--font-heading)', fontWeight: 700, fontSize: 'var(--text-lg)', color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Personal Finance Manager</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+            <LangToggle />
+            <ThemeToggle />
+            <button onClick={onToggleMobile} aria-label="Menu" style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--text-primary)', padding: 6 }}>
+              <i data-lucide={mobileOpen ? 'x' : 'menu'} style={{ width: 22, height: 22 }}></i>
+            </button>
+          </div>
+        </div>
+        {mobileOpen && (
+          <div style={{ borderBottom: '1px solid var(--border-default)', background: 'var(--surface-card)', padding: 8, display: 'flex', flexDirection: 'column', gap: 2 }}>
+            {items.map((item) => <NavLink key={item.key} item={item} />)}
+            <div style={{ height: 1, background: 'var(--border-subtle)', margin: '6px 0' }} />
+            <UserChip compact />
+          </div>
+        )}
+        <div style={{ flex: 1, padding: 16 }}>{children}</div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ display: 'flex', minHeight: '100%', background: 'var(--surface-page)' }}>
+      <div style={{ width: 'var(--sidebar-width)', flexShrink: 0, borderRight: '1px solid var(--border-default)', background: 'var(--surface-card)', display: 'flex', flexDirection: 'column', padding: 16 }}>
+        <div style={{ fontFamily: 'var(--font-heading)', fontWeight: 700, fontSize: 'var(--text-lg)', color: 'var(--text-primary)', padding: '4px 10px 20px' }}>
+          Personal Finance Manager
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 2, flex: 1 }}>
+          {items.map((item) => <NavLink key={item.key} item={item} />)}
+        </div>
+        <UserChip />
+      </div>
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 10, height: 'var(--topbar-height)', padding: '0 32px', borderBottom: '1px solid var(--border-default)', background: 'var(--surface-card)', position: 'sticky', top: 0, zIndex: 30, flexShrink: 0 }}>
+          <LangToggle />
+          <ThemeToggle />
+        </div>
+        <div style={{ flex: 1, padding: 32, overflowY: 'auto' }}>{children}</div>
+      </div>
+    </div>
+  );
+}
+window.NavShell = NavShell;

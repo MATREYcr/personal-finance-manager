@@ -1,0 +1,100 @@
+const { useState } = React;
+
+const initialRecurring = [
+  { id: 1, category: 'Salary', type: 'Income', amount: '3,000.00', currency: 'USD', frequency: 'Monthly', next: '2026-08-01', status: 'Active' },
+];
+
+function Recurring({ Button, Input, Label, Select, Badge, Dialog, Table, TableHead, TableHeadRow, TableHeaderCell, TableBody, TableRow, TableCell }) {
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [rows, setRows] = useState(initialRecurring);
+
+  const toggleStatus = (id) => {
+    setRows((rs) => rs.map((r) => (r.id === id ? { ...r, status: r.status === 'Active' ? 'Paused' : 'Active' } : r)));
+  };
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20, maxWidth: 'var(--content-max-width)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
+        <h1 style={{ fontSize: 'var(--text-2xl)', fontWeight: 700 }}>Recurring transactions</h1>
+        <Button onClick={() => setDialogOpen(true)}>
+          <i data-lucide="plus" style={{ width: 16, height: 16 }}></i>
+          New recurring transaction
+        </Button>
+      </div>
+
+      <Table>
+        <TableHead><TableHeadRow>
+          <TableHeaderCell>Category</TableHeaderCell>
+          <TableHeaderCell>Type</TableHeaderCell>
+          <TableHeaderCell align="right">Amount</TableHeaderCell>
+          <TableHeaderCell>Frequency</TableHeaderCell>
+          <TableHeaderCell>Next run</TableHeaderCell>
+          <TableHeaderCell>Status</TableHeaderCell>
+          <TableHeaderCell align="right">Actions</TableHeaderCell>
+        </TableHeadRow></TableHead>
+        <TableBody>
+          {rows.map((r) => (
+            <TableRow key={r.id}>
+              <TableCell>{r.category}</TableCell>
+              <TableCell><Badge variant={r.type === 'Income' ? 'positive' : 'negative'}>{r.type}</Badge></TableCell>
+              <TableCell align="right" amount style={{ fontWeight: 600, color: r.type === 'Income' ? 'var(--positive)' : 'var(--negative)' }}>
+                {r.type === 'Income' ? '+' : '−'}{r.amount} {r.currency}
+              </TableCell>
+              <TableCell>{r.frequency}</TableCell>
+              <TableCell style={{ color: 'var(--text-secondary)' }}>{r.next}</TableCell>
+              <TableCell><Badge variant={r.status === 'Active' ? 'positive' : 'outline'} dot>{r.status}</Badge></TableCell>
+              <TableCell align="right">
+                <div style={{ display: 'flex', gap: 4, justifyContent: 'flex-end' }}>
+                  <Button variant="default" size="icon" aria-label="Edit" style={{ background: 'var(--accent)', borderColor: 'var(--accent)', color: '#fff' }}><i data-lucide="pencil" style={{ width: 15, height: 15 }}></i></Button>
+                  <Button variant="default" size="icon" aria-label={r.status === 'Active' ? 'Pause' : 'Resume'} onClick={() => toggleStatus(r.id)} style={{ background: r.status === 'Active' ? '#71717a' : 'var(--positive)', borderColor: r.status === 'Active' ? '#71717a' : 'var(--positive)', color: '#fff' }}>
+                    <i data-lucide={r.status === 'Active' ? 'pause' : 'play'} style={{ width: 15, height: 15 }}></i>
+                  </Button>
+                  <Button variant="default" size="icon" aria-label="Delete" style={{ background: 'var(--negative)', borderColor: 'var(--negative)', color: '#fff' }}><i data-lucide="trash-2" style={{ width: 15, height: 15 }}></i></Button>
+                </div>
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+
+      <Dialog
+        open={dialogOpen}
+        onClose={() => setDialogOpen(false)}
+        title="New recurring transaction"
+        footer={<><Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button><Button onClick={() => setDialogOpen(false)}>Save</Button></>}
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <div>
+            <Label>Type</Label>
+            <Select value="income" options={[{ value: 'expense', label: 'Expense' }, { value: 'income', label: 'Income' }]} />
+          </div>
+          <div>
+            <Label>Category</Label>
+            <Select value="salary" options={[{ value: 'salary', label: 'Salary' }, { value: 'rent', label: 'Rent' }]} />
+          </div>
+          <div style={{ display: 'flex', gap: 12 }}>
+            <div style={{ flex: 2 }}>
+              <Label>Amount</Label>
+              <Input type="number" placeholder="0.00" />
+            </div>
+            <div style={{ flex: 1 }}>
+              <Label>Currency</Label>
+              <Input placeholder="USD" maxLength={3} />
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: 12 }}>
+            <div style={{ flex: 1 }}>
+              <Label>Frequency</Label>
+              <Select value="monthly" options={[{ value: 'weekly', label: 'Weekly' }, { value: 'monthly', label: 'Monthly' }, { value: 'yearly', label: 'Yearly' }]} />
+            </div>
+            <div style={{ flex: 1 }}>
+              <Label>Start date</Label>
+              <Input type="date" defaultValue="2026-08-01" />
+            </div>
+          </div>
+        </div>
+      </Dialog>
+    </div>
+  );
+}
+window.Recurring = Recurring;

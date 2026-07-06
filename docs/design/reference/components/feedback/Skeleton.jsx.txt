@@ -1,0 +1,21 @@
+import React from 'react';
+
+/**
+ * Skeleton — subtle pulsing placeholder for loading table rows / cards.
+ * Intentional addition: brief explicitly calls for a subtle table loading state.
+ */
+export function Skeleton({ width = '100%', height = 16, radius = 'var(--radius-sm)', style }) {
+  return (
+    <div
+      style={{
+        width,
+        height,
+        borderRadius: radius,
+        background: 'linear-gradient(90deg, var(--surface-sunken) 25%, var(--border-subtle) 50%, var(--surface-sunken) 75%)',
+        backgroundSize: '520px 100%',
+        animation: 'pfm-skeleton 1.2s infinite linear',
+        ...style,
+      }}
+    />
+  );
+}
