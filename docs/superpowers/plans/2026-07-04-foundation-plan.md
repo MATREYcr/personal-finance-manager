@@ -4,7 +4,7 @@
 
 **Goal:** Stand up the Next.js scaffold, Supabase/Prisma datasource, internationalized routing (Spanish default, English second) with light/dark mode, the complete domain schema, Better Auth, and a protected app shell — the shared foundation every later feature branch builds on.
 
-**Architecture:** Next.js 15 App Router, single deployable app. Every route lives under a `[locale]` segment (`src/app/[locale]/...`); API routes (`src/app/api/...`) are not localized and stay outside it. `src/features/<domain>/` holds business logic (populated by later plans); this plan only creates shared infrastructure (`src/lib/`, `src/i18n/`, `messages/`, `prisma/schema.prisma`, `src/middleware.ts`, the locale/root and dashboard-group layouts).
+**Architecture:** Next.js 15 App Router, single deployable app. Every route lives under a `[locale]` segment (`src/app/[locale]/...`); API routes (`src/app/api/...`) are not localized and stay outside it. `src/features/<domain>/` holds business logic (populated by later plans); this plan only creates shared infrastructure (`src/lib/`, `src/i18n/`, `messages/`, `prisma/schema.prisma`, `src/proxy.ts` (the file Next.js 16 calls what was `middleware.ts` in Next.js ≤15 — same role, same next-intl API, just the renamed file convention), the locale/root and dashboard-group layouts).
 
 **Tech Stack:** Next.js 15 (App Router), TypeScript, Tailwind CSS + shadcn/ui, next-intl, next-themes, Prisma ORM, Supabase Postgres, Better Auth, TanStack Query, Vitest, npm.
 
@@ -47,7 +47,7 @@ personal-finance-manager/
 │   │   ├── auth/{index.ts,client.ts,session.ts}
 │   │   ├── db/index.ts
 │   │   └── query/{client.tsx,keys.ts}
-│   └── middleware.ts
+│   └── proxy.ts                            ← was middleware.ts before Next.js 16
 ├── next.config.ts                            ← wrapped with next-intl plugin
 ├── prisma.config.ts                          ← Prisma 7: datasource URLs live here, not in schema.prisma
 ├── vercel.json                               ← created here empty-ish, appended to by later cron-adding plans
@@ -348,8 +348,8 @@ git commit -m "chore(db): configure Prisma with Supabase Postgres datasource"
 - Create: `src/i18n/request.ts`
 - Create: `src/i18n/navigation.ts`
 - Modify: `next.config.ts`
-- Create: `src/middleware.ts` (base i18n-only version — Task 5 adds auth protection on top)
-- Create: `src/app/[locale]/layout.tsx` (replaces the default `src/app/layout.tsx` generated in Task 1 — delete that file)
+- Create: `src/proxy.ts` (base i18n-only version — Task 5 adds auth protection on top; named `proxy.ts` because Next.js 16 renamed the `middleware.ts` file convention — same role, same next-intl API)
+- Create: `src/app/[locale]/layout.tsx` (replaces the default `src/app/layout.tsx` generated in Task 1 — delete that file, and also delete the sibling `src/app/page.tsx` create-next-app generated, since it's unreachable once the locale middleware/proxy is in place and would otherwise sit as dead, misleading placeholder content)
 
 **Interfaces:**
 - Produces: `routing` (locales, defaultLocale) at `@/i18n/routing`; `Link`, `redirect`, `usePathname`, `useRouter`, `getPathname` at `@/i18n/navigation`; the `messages/*.json` catalogs every later plan adds its namespace to.
@@ -436,10 +436,12 @@ export default withNextIntl(nextConfig)
 }
 ```
 
-- [ ] **Step 7: Base middleware (locale detection/redirect only — Task 5 layers auth on top)**
+- [ ] **Step 7: Base proxy/middleware (locale detection/redirect only — Task 5 layers auth on top)**
+
+Next.js 16 renamed the `middleware.ts` file convention to `proxy.ts` (same role, same next-intl API — verify which your installed Next.js version expects; if it's Next.js ≤15, name this file `middleware.ts` instead and skip the rename note in later steps).
 
 ```typescript
-// src/middleware.ts
+// src/proxy.ts
 import createMiddleware from 'next-intl/middleware'
 import { routing } from '@/i18n/routing'
 
@@ -452,7 +454,7 @@ export const config = {
 
 - [ ] **Step 8: Locale layout**
 
-Delete `src/app/layout.tsx` (generated in Task 1) and create:
+Delete `src/app/layout.tsx` (generated in Task 1) — and also `src/app/page.tsx` (create-next-app's default splash page), since it becomes dead/unreachable code once the proxy unconditionally redirects `/` into a locale — then create:
 
 ```typescript
 // src/app/[locale]/layout.tsx
@@ -505,7 +507,7 @@ export default async function LocaleLayout({
 
 - [ ] **Step 9: Manual verification**
 
-Run `npm run dev`. Visiting `/` redirects to `/es` (default locale) and renders without error (a blank/empty body is expected — no page content exists yet until Task 7's root page). Visiting `/en` directly also works. Visiting `/fr` (unsupported locale) 404s.
+Run `npm run dev`. Visiting `/` redirects (307) to `/es` (default locale). Visiting `/es` and `/en` directly each correctly negotiate that locale (confirm via the `NEXT_LOCALE` cookie) — but since no `page.tsx` exists yet under `[locale]/` (that's Task 7's job), Next.js's App Router correctly 404s both routes rather than rendering blank; that 404 is the expected, correct result for this task, not a bug. Visiting `/fr` (unsupported locale) ends up 404 as well, whether via a direct 404 or via a redirect to the default locale first, depending on next-intl's version behavior.
 
 - [ ] **Step 10: Commit**
 
@@ -621,7 +623,7 @@ git commit -m "feat(theme): add next-themes light/dark mode support"
 - Create: `src/lib/auth/client.ts`
 - Create: `src/lib/auth/session.ts`
 - Create: `src/app/api/auth/[...all]/route.ts`
-- Modify: `src/middleware.ts` (layer auth protection on top of the i18n middleware from Task 3)
+- Modify: `src/proxy.ts` (layer auth protection on top of the i18n proxy/middleware from Task 3 — named `middleware.ts` instead if Task 3 used that name for your Next.js version)
 - Create: `src/components/auth-split-panel.tsx`
 - Create: `src/app/[locale]/(auth)/sign-in/page.tsx`
 - Create: `src/app/[locale]/(auth)/sign-up/page.tsx`
@@ -723,12 +725,12 @@ Expected: `prisma/schema.prisma` now also contains `User`, `Session`, `Account`,
 npx prisma migrate dev --name add_better_auth_tables
 ```
 
-- [ ] **Step 8: Layer route protection onto the i18n middleware**
+- [ ] **Step 8: Layer route protection onto the i18n proxy/middleware**
 
-Replace the Task 3 base middleware with the combined version:
+Replace the Task 3 base proxy/middleware with the combined version (file named `src/proxy.ts` on Next.js 16+, `src/middleware.ts` on Next.js ≤15 — match whatever Task 3 actually created):
 
 ```typescript
-// src/middleware.ts
+// src/proxy.ts
 import createMiddleware from 'next-intl/middleware'
 import { betterFetch } from '@better-fetch/fetch'
 import type { Session } from 'better-auth/types'
@@ -745,7 +747,7 @@ const protectedPaths = [
   '/settings',
 ]
 
-export default async function middleware(request: NextRequest) {
+export default async function proxy(request: NextRequest) {
   const response = handleI18nRouting(request)
 
   const localeMatch = request.nextUrl.pathname.match(/^\/(es|en)(\/|$)/)
