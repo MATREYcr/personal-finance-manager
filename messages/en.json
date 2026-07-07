@@ -87,5 +87,18 @@
     "statusPaused": "Paused",
     "pause": "Pause",
     "resume": "Resume"
+  },
+  "Settings": {
+    "title": "Settings",
+    "baseCurrency": "Base currency",
+    "saved": "Saved"
+  },
+  "Dashboard": {
+    "week": "Week",
+    "month": "Month",
+    "year": "Year",
+    "income": "Income",
+    "expense": "Expense",
+    "savings": "Savings"
   }
 }
