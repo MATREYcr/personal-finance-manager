@@ -5,6 +5,7 @@ import { redirect } from '@/i18n/navigation'
 import { getDashboardSummary } from '@/features/dashboard/queries'
 import { PeriodSwitcher } from '@/features/dashboard/components/PeriodSwitcher'
 import { SummaryCards } from '@/features/dashboard/components/SummaryCards'
+import { Skeleton } from '@/components/ui/skeleton'
 import type { Period } from '@/features/dashboard/types'
 
 // Cache Components (next.config.ts `cacheComponents: true`) errors at build time
@@ -60,11 +61,11 @@ async function DashboardContent({
 function DashboardSkeleton() {
   return (
     <div className="space-y-6 p-4 md:p-6">
-      <div className="h-8 w-48 animate-pulse rounded-md bg-muted" />
+      <Skeleton className="h-8 w-48" />
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <div className="h-28 animate-pulse rounded-xl bg-muted" />
-        <div className="h-28 animate-pulse rounded-xl bg-muted" />
-        <div className="h-28 animate-pulse rounded-xl bg-muted" />
+        <Skeleton className="h-28 rounded-xl" />
+        <Skeleton className="h-28 rounded-xl" />
+        <Skeleton className="h-28 rounded-xl" />
       </div>
     </div>
   )

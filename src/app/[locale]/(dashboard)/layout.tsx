@@ -4,6 +4,7 @@ import { useTranslations } from 'next-intl'
 import { Link, usePathname } from '@/i18n/navigation'
 import { signOut, useSession } from '@/lib/auth/client'
 import { Button } from '@/components/ui/button'
+import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
 import { ThemeToggle } from '@/components/theme-toggle'
 import { LanguageToggle } from '@/components/language-toggle'
@@ -56,9 +57,11 @@ function UserChip({ name, email }: { name: string; email: string }) {
 
   return (
     <div className="flex items-center gap-2.5 rounded-md border bg-muted p-2.5">
-      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-primary to-blue-600 text-xs font-bold text-white">
-        {initials}
-      </div>
+      <Avatar className="shrink-0">
+        <AvatarFallback className="bg-linear-to-br from-primary to-blue-600 text-xs font-bold text-white">
+          {initials}
+        </AvatarFallback>
+      </Avatar>
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-semibold">{name}</p>
         <p className="truncate text-xs font-medium text-primary">{email}</p>

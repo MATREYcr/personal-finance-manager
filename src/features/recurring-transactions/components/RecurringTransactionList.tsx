@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Skeleton } from '@/components/ui/skeleton'
 import { useRecurringTransactions } from '../hooks/useRecurringTransactions'
 import { useRecurringTransactionMutations } from '../hooks/useRecurringTransactionMutations'
 import { RecurringTransactionFormDialog } from './RecurringTransactionFormDialog'
@@ -19,7 +20,15 @@ export function RecurringTransactionList() {
   const { data: rules, isLoading } = useRecurringTransactions()
   const { toggleActive, remove } = useRecurringTransactionMutations()
 
-  if (isLoading) return <p>{t('loading')}</p>
+  if (isLoading) {
+    return (
+      <div className="space-y-3" aria-label={t('loading')} aria-busy>
+        {Array.from({ length: 5 }).map((_, i) => (
+          <Skeleton key={i} className="h-10 w-full" />
+        ))}
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-4">

@@ -4,6 +4,7 @@ import { useTranslations } from 'next-intl'
 import { useRouter } from '@/i18n/navigation'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
+import { Label } from '@/components/ui/label'
 import { useSession } from '@/lib/auth/client'
 import { updateBaseCurrency } from '../actions'
 
@@ -47,8 +48,13 @@ function BaseCurrencyFormFields({ initialCurrency }: { initialCurrency: string }
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4 max-w-xs">
-      <label className="block text-sm font-medium">{t('baseCurrency')}</label>
-      <Input value={currency} maxLength={3} onChange={(e) => setCurrency(e.target.value.toUpperCase())} />
+      <Label htmlFor="baseCurrency">{t('baseCurrency')}</Label>
+      <Input
+        id="baseCurrency"
+        value={currency}
+        maxLength={3}
+        onChange={(e) => setCurrency(e.target.value.toUpperCase())}
+      />
       <div className="flex items-center gap-3">
         <Button type="submit" disabled={saving}>{tCommon('save')}</Button>
         {saved && <span className="text-sm font-medium text-(--positive)">{t('saved')}</span>}
