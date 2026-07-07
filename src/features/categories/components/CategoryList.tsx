@@ -4,6 +4,7 @@ import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Skeleton } from '@/components/ui/skeleton'
 import { useCategories } from '../hooks/useCategories'
 import { useCategoryMutations } from '../hooks/useCategoryMutations'
 import { CategoryFormDialog } from './CategoryFormDialog'
@@ -14,7 +15,15 @@ export function CategoryList() {
   const { data: categories, isLoading } = useCategories()
   const { remove } = useCategoryMutations()
 
-  if (isLoading) return <p>{t('loading')}</p>
+  if (isLoading) {
+    return (
+      <div className="space-y-3" aria-label={t('loading')} aria-busy>
+        {Array.from({ length: 5 }).map((_, i) => (
+          <Skeleton key={i} className="h-10 w-full" />
+        ))}
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-4">
