@@ -1,6 +1,6 @@
-@import "tailwindcss";
-@import "tw-animate-css";
-@import "shadcn/tailwind.css";
+@import 'tailwindcss';
+@import 'tw-animate-css';
+@import 'shadcn/tailwind.css';
 
 @custom-variant dark (&:is(.dark *));
 
@@ -49,7 +49,7 @@
 }
 
 :root {
-  --radius: 0.75rem; /* shadcn derives sm/md/lg/xl from this; ~8/10/12/16px, close to the mockup's 8/12/14 */
+  --radius: 0.75rem; /* shadcn derives sm/md/lg/xl radii from this base value */
 
   --background: #f7f7f8;
   --foreground: #09090b;
@@ -71,7 +71,7 @@
   --input: #d4d4d8;
   --ring: rgba(124, 58, 237, 0.35);
 
-  /* Semantic tokens the mockup uses that shadcn doesn't ship by default */
+  /* Semantic tokens shadcn doesn't ship by default */
   --positive: #15803d;
   --positive-bg: #dcfce7;
   --warning: #b45309;

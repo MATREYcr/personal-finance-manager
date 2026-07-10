@@ -13,7 +13,10 @@ describe('refreshExchangeRates', () => {
       }),
     })
 
-    const result = await refreshExchangeRates(mockDb, mockFetch as unknown as typeof fetch)
+    const result = await refreshExchangeRates(
+      mockDb,
+      mockFetch as unknown as typeof fetch,
+    )
 
     expect(result).toEqual({ updated: 2 }) // USD (the pivot) is skipped
     expect(mockDb.exchangeRate.upsert).toHaveBeenCalledWith({
@@ -32,7 +35,10 @@ describe('refreshExchangeRates', () => {
     const mockDb = { exchangeRate: { upsert: vi.fn() } } as any
     const mockFetch = vi.fn().mockResolvedValue({ ok: false })
 
-    const result = await refreshExchangeRates(mockDb, mockFetch as unknown as typeof fetch)
+    const result = await refreshExchangeRates(
+      mockDb,
+      mockFetch as unknown as typeof fetch,
+    )
 
     expect(result).toEqual({ updated: 0, error: expect.any(String) })
     expect(mockDb.exchangeRate.upsert).not.toHaveBeenCalled()
@@ -42,7 +48,10 @@ describe('refreshExchangeRates', () => {
     const mockDb = { exchangeRate: { upsert: vi.fn() } } as any
     const mockFetch = vi.fn().mockRejectedValue(new Error('ECONNRESET'))
 
-    const result = await refreshExchangeRates(mockDb, mockFetch as unknown as typeof fetch)
+    const result = await refreshExchangeRates(
+      mockDb,
+      mockFetch as unknown as typeof fetch,
+    )
 
     expect(result).toEqual({ updated: 0, error: 'ECONNRESET' })
     expect(mockDb.exchangeRate.upsert).not.toHaveBeenCalled()

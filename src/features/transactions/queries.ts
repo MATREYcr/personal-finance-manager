@@ -1,15 +1,16 @@
 'use cache'
 import { cacheTag } from 'next/cache'
 import { db } from '@/lib/db'
+import { CACHE_TAGS } from '@/lib/constants/cache-tags'
 import { getPaginationParams } from './pagination'
 import type { TransactionFilters, PaginatedTransactions } from './types'
 
 export async function getTransactions(
   userId: string,
   filters: TransactionFilters = {},
-  page: number = 1
+  page: number = 1,
 ): Promise<PaginatedTransactions> {
-  cacheTag('transactions')
+  cacheTag(CACHE_TAGS.TRANSACTIONS)
 
   const where = {
     userId,
@@ -38,11 +39,11 @@ export async function getTransactions(
     db.transaction.count({ where }),
   ])
 
-  // Coerce Decimal -> number before returning: this is a `'use cache'` function,
-  // and the RSC serializer that caches its return value throws on Prisma Decimal
-  // instances ("Only plain objects can be passed... Decimal objects are not
-  // supported"). Every consumer already treats amount as a number.
-  const plainTransactions = transactions.map((tx) => ({ ...tx, amount: Number(tx.amount) }))
+  // Coerce Decimal -> number: the 'use cache' RSC serializer throws on Prisma Decimal instances.
+  const plainTransactions = transactions.map((tx) => ({
+    ...tx,
+    amount: Number(tx.amount),
+  }))
 
   return { transactions: plainTransactions, totalCount, page, pageSize: take }
 }

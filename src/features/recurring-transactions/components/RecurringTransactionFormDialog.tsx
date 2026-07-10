@@ -6,27 +6,41 @@ import { z } from 'zod'
 import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog'
-import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DialogFooter,
+} from '@/components/ui/dialog'
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from '@/components/ui/select'
 import { useCategories } from '@/features/categories/hooks/useCategories'
 import { useRecurringTransactionMutations } from '../hooks/useRecurringTransactionMutations'
 import type { RecurringTransactionWithCategory } from '../types'
 import type { Category } from '@/features/categories/types'
+import type { TransactionType, RecurrenceFrequency } from '@prisma/client'
+import {
+  transactionTypeSchema,
+  recurrenceFrequencySchema,
+} from '@/lib/validations/schemas'
 
 const schema = z.object({
   categoryId: z.string().min(1, 'Required'),
-  type: z.enum(['EXPENSE', 'INCOME']),
+  type: transactionTypeSchema,
   amount: z.coerce.number().positive('Must be greater than 0'),
   currency: z.string().min(3).max(3),
-  frequency: z.enum(['WEEKLY', 'MONTHLY', 'YEARLY']),
+  frequency: recurrenceFrequencySchema,
   startDate: z.string().min(1, 'Required'),
   note: z.string().max(280).optional(),
 })
-// z.coerce.number() has a different input type (unknown, since it accepts
-// anything coercible) than output type (number, post-coercion) — split the
-// two so useForm's default values (input) and submit handler (output) each
-// get the type they actually deal with. Same pattern as Transactions'
-// TransactionFormDialog.
+// z.coerce.number() input type (unknown) differs from its output type (number); split accordingly.
 type FormValues = z.input<typeof schema>
 type FormOutput = z.output<typeof schema>
 
@@ -37,13 +51,7 @@ function defaultValuesFor(rule?: RecurringTransactionWithCategory): FormValues {
     amount: rule ? Number(rule.amount) : 0,
     currency: rule?.currency ?? 'USD',
     frequency: rule?.frequency ?? 'MONTHLY',
-    // Left blank for "new" here (rather than `new Date()`) since this runs on
-    // every render, including the initial prerender of this Client Component
-    // before the dialog is ever opened — evaluating the current time there
-    // trips Cache Components' next-prerender-current-time-client check and
-    // fails `next build`. Today's date is filled in instead in handleOpenChange,
-    // which only runs client-side in response to the user opening the dialog.
-    // Same fix as Transactions' TransactionFormDialog.
+    // Left blank for "new" (not `new Date()`): evaluating current time during prerender fails `next build` under Cache Components.
     startDate: rule ? rule.nextRunDate.toString().slice(0, 10) : '',
     note: rule?.note ?? '',
   }
@@ -69,16 +77,14 @@ export function RecurringTransactionFormDialog({
   })
 
   function handleOpenChange(next: boolean) {
-    // Re-sync the form to this rule's current values (or a blank slate for
-    // "new") every time the dialog opens — react-hook-form's defaultValues is
-    // only read once at mount, so without this a persistent row instance
-    // would keep showing whatever it first opened with. For a new rule, also
-    // fill in today's startDate here (see defaultValuesFor) since this only
-    // runs client-side, after the user opens the dialog. Same fix as
-    // Categories' CategoryFormDialog and Transactions' TransactionFormDialog.
+    // react-hook-form only reads defaultValues once at mount, so re-sync on every open.
     if (next) {
       const values = defaultValuesFor(rule)
-      form.reset(rule ? values : { ...values, startDate: new Date().toISOString().slice(0, 10) })
+      form.reset(
+        rule
+          ? values
+          : { ...values, startDate: new Date().toISOString().slice(0, 10) },
+      )
     }
     setOpen(next)
   }
@@ -100,51 +106,76 @@ export function RecurringTransactionFormDialog({
           <DialogTitle>{rule ? t('edit') : t('new')}</DialogTitle>
         </DialogHeader>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-          {/* Controlled (value, not defaultValue) on purpose: form.reset() (see
-              handleOpenChange) changes each field's value after mount, and an
-              uncontrolled Select fed a fresh defaultValue on every render logs
-              Base UI's "changing the default value state of an uncontrolled
-              Select after being initialized" warning. Same fix as Transactions'
-              TransactionFormDialog. */}
-          <Select value={form.watch('type')} onValueChange={(v) => form.setValue('type', v as 'EXPENSE' | 'INCOME')}>
+          {/* Controlled, not defaultValue: form.reset() would otherwise trigger Base UI's uncontrolled-Select warning. */}
+          <Select
+            value={form.watch('type')}
+            onValueChange={(v) => form.setValue('type', v as TransactionType)}
+          >
             <SelectTrigger>
-              {/* base-ui's SelectValue renders the raw value by default — a
-                  children render-callback is required to map it to a
-                  translated label. */}
+              {/* SelectValue renders the raw value by default; map it to a translated label. */}
               <SelectValue>
-                {(value: string | null) => (value === 'EXPENSE' ? tCategories('typeExpense') : tCategories('typeIncome'))}
+                {(value: string | null) =>
+                  value === 'EXPENSE'
+                    ? tCategories('typeExpense')
+                    : tCategories('typeIncome')
+                }
               </SelectValue>
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="EXPENSE">{tCategories('typeExpense')}</SelectItem>
-              <SelectItem value="INCOME">{tCategories('typeIncome')}</SelectItem>
+              <SelectItem value="EXPENSE">
+                {tCategories('typeExpense')}
+              </SelectItem>
+              <SelectItem value="INCOME">
+                {tCategories('typeIncome')}
+              </SelectItem>
             </SelectContent>
           </Select>
-          <Select value={form.watch('categoryId')} onValueChange={(v) => form.setValue('categoryId', v ?? '')}>
+          <Select
+            value={form.watch('categoryId')}
+            onValueChange={(v) => form.setValue('categoryId', v ?? '')}
+          >
             <SelectTrigger>
-              {/* Same default-raw-value issue as the type select above, but
-                  here the raw value is a category id — without this callback
-                  the trigger would literally show the category's id string. */}
               <SelectValue placeholder={tTransactions('categoryPlaceholder')}>
                 {(value: string | null) =>
-                  (categories as Category[] | undefined)?.find((c) => c.id === value)?.name ?? tTransactions('categoryPlaceholder')
+                  (categories as Category[] | undefined)?.find(
+                    (c) => c.id === value,
+                  )?.name ?? tTransactions('categoryPlaceholder')
                 }
               </SelectValue>
             </SelectTrigger>
             <SelectContent>
               {(categories as Category[] | undefined)?.map((c) => (
-                <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                <SelectItem key={c.id} value={c.id}>
+                  {c.name}
+                </SelectItem>
               ))}
             </SelectContent>
           </Select>
-          <Input type="number" step="0.01" placeholder={tTransactions('amount')} {...form.register('amount')} />
-          <Input placeholder={tTransactions('currency')} maxLength={3} {...form.register('currency')} />
-          <Select value={form.watch('frequency')} onValueChange={(v) => form.setValue('frequency', v as 'WEEKLY' | 'MONTHLY' | 'YEARLY')}>
+          <Input
+            type="number"
+            step="0.01"
+            placeholder={tTransactions('amount')}
+            {...form.register('amount')}
+          />
+          <Input
+            placeholder={tTransactions('currency')}
+            maxLength={3}
+            {...form.register('currency')}
+          />
+          <Select
+            value={form.watch('frequency')}
+            onValueChange={(v) =>
+              form.setValue('frequency', v as RecurrenceFrequency)
+            }
+          >
             <SelectTrigger>
-              {/* Same default-raw-value issue again, for the frequency enum. */}
               <SelectValue>
                 {(value: string | null) =>
-                  value === 'WEEKLY' ? t('frequencyWeekly') : value === 'YEARLY' ? t('frequencyYearly') : t('frequencyMonthly')
+                  value === 'WEEKLY'
+                    ? t('frequencyWeekly')
+                    : value === 'YEARLY'
+                      ? t('frequencyYearly')
+                      : t('frequencyMonthly')
                 }
               </SelectValue>
             </SelectTrigger>
@@ -154,10 +185,24 @@ export function RecurringTransactionFormDialog({
               <SelectItem value="YEARLY">{t('frequencyYearly')}</SelectItem>
             </SelectContent>
           </Select>
-          {!rule && <Input type="date" placeholder={t('startDate')} {...form.register('startDate')} />}
-          <Input placeholder={tTransactions('note')} {...form.register('note')} />
+          {!rule && (
+            <Input
+              type="date"
+              placeholder={t('startDate')}
+              {...form.register('startDate')}
+            />
+          )}
+          <Input
+            placeholder={tTransactions('note')}
+            {...form.register('note')}
+          />
           <DialogFooter>
-            <Button type="submit" disabled={create.isPending || update.isPending}>{tCommon('save')}</Button>
+            <Button
+              type="submit"
+              disabled={create.isPending || update.isPending}
+            >
+              {tCommon('save')}
+            </Button>
           </DialogFooter>
         </form>
       </DialogContent>

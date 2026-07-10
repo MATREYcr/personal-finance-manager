@@ -54,16 +54,18 @@ src/app/[locale]/(dashboard)/categories/page.tsx
 ### Task 1: Default category seeding on signup
 
 **Files:**
+
 - Create: `src/features/categories/default-categories.ts`
 - Create: `src/features/categories/seed.ts`
 - Create: `src/features/categories/seed.test.ts`
 - Modify: `src/lib/auth/index.ts` (add `databaseHooks`)
 
 **Interfaces:**
+
 - Consumes: `db` from `@/lib/db`, `PrismaClient`/`TransactionType` from `@prisma/client`.
 - Produces: `DEFAULT_CATEGORIES`, `seedDefaultCategories(db, userId)` — wired into the Better Auth signup hook, not otherwise exported for use.
 
-The default category *names* are stored once, in English, as stable identifiers — not translated per user. (A category named "Market" is the user's own editable data from that point on, same as any category they'd create by hand; it is not re-translated if they switch the UI language. This mirrors how seeded data works in any i18n app: seed data is a starting point, not living UI copy.)
+The default category _names_ are stored once, in English, as stable identifiers — not translated per user. (A category named "Market" is the user's own editable data from that point on, same as any category they'd create by hand; it is not re-translated if they switch the UI language. This mirrors how seeded data works in any i18n app: seed data is a starting point, not living UI copy.)
 
 - [ ] **Step 1: Write the failing test**
 
@@ -75,7 +77,9 @@ import { DEFAULT_CATEGORIES } from './default-categories'
 
 describe('seedDefaultCategories', () => {
   it('creates one category per default entry, scoped to the given user', async () => {
-    const createMany = vi.fn().mockResolvedValue({ count: DEFAULT_CATEGORIES.length })
+    const createMany = vi
+      .fn()
+      .mockResolvedValue({ count: DEFAULT_CATEGORIES.length })
     const mockDb = { category: { createMany } } as any
 
     await seedDefaultCategories(mockDb, 'user-1')
@@ -98,7 +102,10 @@ Expected: FAIL — `Cannot find module './seed'` (and `./default-categories`).
 // src/features/categories/default-categories.ts
 import type { TransactionType } from '@prisma/client'
 
-export const DEFAULT_CATEGORIES: Array<{ name: string; type: TransactionType }> = [
+export const DEFAULT_CATEGORIES: Array<{
+  name: string
+  type: TransactionType
+}> = [
   { name: 'Market', type: 'EXPENSE' },
   { name: 'Transport', type: 'EXPENSE' },
   { name: 'Rent', type: 'EXPENSE' },
@@ -177,6 +184,7 @@ git commit -m "feat(categories): seed default categories for every new user"
 ### Task 2: Categories queries and actions
 
 **Files:**
+
 - Create: `src/features/categories/types.ts`
 - Create: `src/features/categories/queries.ts`
 - Create: `src/features/categories/actions.ts`
@@ -185,6 +193,7 @@ git commit -m "feat(categories): seed default categories for every new user"
 - Modify: `messages/es.json`, `messages/en.json` (add the `Categories` namespace's `deleteError` key, used by the Server Action's thrown error message)
 
 **Interfaces:**
+
 - Consumes: `requireSession` from `@/lib/auth/session`, `db` from `@/lib/db`, `Category` type from `@prisma/client`.
 - Produces: `getCategories(userId)`, `createCategory(input)`, `updateCategory(input)`, `deleteCategory(categoryId)`, `queryKeys.categories.all` — consumed by Task 3's UI, and later by the Transactions and Recurring Transactions plans (category select dropdowns, ownership checks).
 
@@ -228,8 +237,12 @@ const { mockRequireSession, mockGetTranslations, mockDb } = vi.hoisted(() => ({
   },
 }))
 
-vi.mock('@/lib/auth/session', () => ({ requireSession: () => mockRequireSession() }))
-vi.mock('next-intl/server', () => ({ getTranslations: () => mockGetTranslations() }))
+vi.mock('@/lib/auth/session', () => ({
+  requireSession: () => mockRequireSession(),
+}))
+vi.mock('next-intl/server', () => ({
+  getTranslations: () => mockGetTranslations(),
+}))
 vi.mock('@/lib/db', () => ({ db: mockDb }))
 vi.mock('next/cache', () => ({ updateTag: vi.fn() }))
 
@@ -317,7 +330,9 @@ const categoryInputSchema = z.object({
   type: z.enum(['EXPENSE', 'INCOME']),
 })
 
-export async function createCategory(input: z.infer<typeof categoryInputSchema>) {
+export async function createCategory(
+  input: z.infer<typeof categoryInputSchema>,
+) {
   const session = await requireSession()
   const { name, type } = categoryInputSchema.parse(input)
 
@@ -333,7 +348,9 @@ const updateCategoryInputSchema = categoryInputSchema.extend({
   id: z.string().min(1),
 })
 
-export async function updateCategory(input: z.infer<typeof updateCategoryInputSchema>) {
+export async function updateCategory(
+  input: z.infer<typeof updateCategoryInputSchema>,
+) {
   const session = await requireSession()
   const { id, name, type } = updateCategoryInputSchema.parse(input)
 
@@ -351,7 +368,9 @@ export async function deleteCategory(categoryId: string) {
 
   const [transactionCount, recurringCount] = await Promise.all([
     db.transaction.count({ where: { categoryId, userId: session.user.id } }),
-    db.recurringTransaction.count({ where: { categoryId, userId: session.user.id } }),
+    db.recurringTransaction.count({
+      where: { categoryId, userId: session.user.id },
+    }),
   ])
 
   if (transactionCount > 0 || recurringCount > 0) {
@@ -359,7 +378,9 @@ export async function deleteCategory(categoryId: string) {
     throw new Error(t('deleteError'))
   }
 
-  await db.category.delete({ where: { id: categoryId, userId: session.user.id } })
+  await db.category.delete({
+    where: { id: categoryId, userId: session.user.id },
+  })
   updateTag('categories')
 }
 ```
@@ -381,6 +402,7 @@ git commit -m "feat(categories): add CRUD queries/actions with delete-guard"
 ### Task 3: Categories UI
 
 **Files:**
+
 - Create: `src/features/categories/hooks/useCategories.ts`
 - Create: `src/features/categories/hooks/useCategoryMutations.ts`
 - Create: `src/features/categories/components/CategoryList.tsx`
@@ -390,6 +412,7 @@ git commit -m "feat(categories): add CRUD queries/actions with delete-guard"
 - Modify: `messages/es.json`, `messages/en.json` (add the rest of the `Categories` namespace)
 
 **Interfaces:**
+
 - Consumes: `getCategories`, `createCategory`, `updateCategory`, `deleteCategory` (Task 2), `queryKeys.categories` (Task 2), `requireSession` (Foundation).
 - Produces: a working `/categories` page. `useCategories()` (Task hooks) is consumed later by the Transactions and Recurring Transactions UIs for their category-select dropdowns.
 
@@ -449,11 +472,21 @@ import { createCategory, updateCategory, deleteCategory } from '../actions'
 
 export function useCategoryMutations() {
   const qc = useQueryClient()
-  const invalidate = () => qc.invalidateQueries({ queryKey: queryKeys.categories.all })
+  const invalidate = () =>
+    qc.invalidateQueries({ queryKey: queryKeys.categories.all })
 
-  const create = useMutation({ mutationFn: createCategory, onSuccess: invalidate })
-  const update = useMutation({ mutationFn: updateCategory, onSuccess: invalidate })
-  const remove = useMutation({ mutationFn: deleteCategory, onSuccess: invalidate })
+  const create = useMutation({
+    mutationFn: createCategory,
+    onSuccess: invalidate,
+  })
+  const update = useMutation({
+    mutationFn: updateCategory,
+    onSuccess: invalidate,
+  })
+  const remove = useMutation({
+    mutationFn: deleteCategory,
+    onSuccess: invalidate,
+  })
 
   return { create, update, remove }
 }
@@ -692,6 +725,7 @@ git commit -m "feat(categories): build categories management UI"
 ```bash
 npm test
 ```
+
 Expected: all pass (seed + actions tests from this plan).
 
 - [ ] **Step 2: Push and open PR**

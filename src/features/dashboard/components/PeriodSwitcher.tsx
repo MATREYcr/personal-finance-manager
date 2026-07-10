@@ -10,7 +10,10 @@ export function PeriodSwitcher({ period }: { period: Period }) {
   const pathname = usePathname()
 
   return (
-    <Tabs value={period} onValueChange={(v) => router.push(`${pathname}?period=${v}`)}>
+    <Tabs
+      value={period}
+      onValueChange={(v) => router.push(`${pathname}?period=${v}`)}
+    >
       <TabsList>
         <TabsTrigger value="week">{t('week')}</TabsTrigger>
         <TabsTrigger value="month">{t('month')}</TabsTrigger>

@@ -2,15 +2,15 @@
 // npm install --save-dev prisma dotenv
 // dotenv/config only loads `.env` by default — this project (like Next.js
 // convention) keeps real secrets in `.env.local`, so load that explicitly.
-import { config } from "dotenv";
-import { defineConfig } from "prisma/config";
+import { config } from 'dotenv'
+import { defineConfig } from 'prisma/config'
 
-config({ path: ".env.local" });
+config({ path: '.env.local' })
 
 export default defineConfig({
-  schema: "prisma/schema.prisma",
+  schema: 'prisma/schema.prisma',
   migrations: {
-    path: "prisma/migrations",
+    path: 'prisma/migrations',
   },
   // Prisma 7's prisma.config.ts datasource only accepts `url` (and
   // `shadowDatabaseUrl`) — there is no `directUrl` key here, unlike the old
@@ -24,6 +24,6 @@ export default defineConfig({
   // better for concurrent serverless load) is used separately by the
   // PrismaClient driver adapter at app runtime — see src/lib/db/index.ts.
   datasource: {
-    url: process.env["DIRECT_URL"],
+    url: process.env['DIRECT_URL'],
   },
-});
+})

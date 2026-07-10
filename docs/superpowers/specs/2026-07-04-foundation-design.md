@@ -35,7 +35,7 @@ schema in parallel.
 
 Follows `next-stack` conventions: `app/` contains only routing files;
 business logic lives in `features/<domain>/` folders. Feature folders this
-foundation does *not* populate (`categories`, `transactions`,
+foundation does _not_ populate (`categories`, `transactions`,
 `recurring-transactions`, `dashboard`, `settings`) are created by their own
 specs.
 
@@ -46,7 +46,7 @@ and is the **source of truth for how the app looks** — colors, type,
 spacing, radii, shadows, and interaction states. The reference files
 (`reference/components/*.jsx`, `reference/ui_kit_app/*.jsx`) are HTML/CSS/
 React prototypes, not code to copy verbatim — every screen is rebuilt with
-real shadcn/ui + Tailwind, matching the mockup's *look*, not its inline-style
+real shadcn/ui + Tailwind, matching the mockup's _look_, not its inline-style
 implementation. Key values (full detail in `docs/design/README.md` and
 `docs/design/reference/tokens/*.css`):
 
@@ -99,27 +99,32 @@ and components — this is not optional polish, it's the agreed visual spec.
 ## Data model (Prisma) — decided in full here
 
 ### User (extends Better Auth's user table)
+
 - Standard Better Auth fields (id, email, name, etc.)
 - `baseCurrency: String` — default `"USD"`. Used later by the dashboard to
   convert all totals into one comparable number.
 
 ### Category
+
 - `id, userId, name, type (EXPENSE | INCOME), createdAt`
 - Per-user, not global. (Seeding on signup and CRUD belong to the Categories
   spec — this spec only decides the shape of the table.)
 
 ### Transaction
+
 - `id, userId, categoryId, type (EXPENSE | INCOME), amount (Decimal),
-  currency (String), date, note?, recurringId? (FK, nullable), createdAt`
+currency (String), date, note?, recurringId? (FK, nullable), createdAt`
 
 ### RecurringTransaction
+
 - `id, userId, categoryId, type (EXPENSE | INCOME), amount (Decimal),
-  currency, frequency (WEEKLY | MONTHLY | YEARLY), nextRunDate, note?,
-  active (Boolean), createdAt`
+currency, frequency (WEEKLY | MONTHLY | YEARLY), nextRunDate, note?,
+active (Boolean), createdAt`
 
 ### ExchangeRate
+
 - `id, targetCurrency (String), rate (Decimal, relative to a fixed pivot
-  currency, e.g. USD), fetchedAt`
+currency, e.g. USD), fetchedAt`
 
 (Full field-level rationale — deletion rules, cron behavior, conversion
 math — lives in the Categories, Recurring Transactions, and Currency/FX/

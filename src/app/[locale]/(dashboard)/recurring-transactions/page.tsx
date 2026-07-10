@@ -7,14 +7,11 @@ export default async function RecurringTransactionsPage({
   params: Promise<{ locale: string }>
 }) {
   const { locale } = await params
-  // Required per-segment: the root layout's setRequestLocale isn't enough —
-  // without this, Cache Components treats getTranslations as accessing
-  // blocking runtime data and `npm run build` fails outright.
   setRequestLocale(locale)
   const t = await getTranslations('RecurringTransactions')
   return (
     <div className="p-4 md:p-6">
-      <h1 className="text-2xl font-semibold mb-4">{t('title')}</h1>
+      <h1 className="mb-4 text-2xl font-semibold">{t('title')}</h1>
       <RecurringTransactionList />
     </div>
   )

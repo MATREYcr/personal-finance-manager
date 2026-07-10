@@ -17,6 +17,10 @@ describe('computeSummary', () => {
   })
 
   it('returns zeroes for an empty transaction list', () => {
-    expect(computeSummary([], {}, 'USD')).toEqual({ income: 0, expense: 0, savings: 0 })
+    expect(computeSummary([], {}, 'USD')).toEqual({
+      income: 0,
+      expense: 0,
+      savings: 0,
+    })
   })
 })

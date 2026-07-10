@@ -11,23 +11,24 @@ interface FxApiResponse {
 
 export async function refreshExchangeRates(
   db: PrismaClient,
-  fetchImpl: typeof fetch = fetch
+  fetchImpl: typeof fetch = fetch,
 ): Promise<{ updated: number; error?: string }> {
   let data: FxApiResponse
   try {
-    // Wrap the network call + JSON parse: a rejected fetch (DNS failure,
-    // timeout, connection reset) or malformed body must degrade to a graceful
-    // { updated: 0, error } — the same contract as an HTTP-error response —
-    // rather than propagating out and surfacing as an unhandled 500 from the
-    // cron route. (A DB upsert failure below is intentionally NOT swallowed:
-    // that's a real fault the cron should surface and retry on.)
+    // Network/parse failures degrade to { updated: 0, error }; DB upsert failures below intentionally propagate.
     const response = await fetchImpl(FX_API_URL)
     if (!response.ok) {
-      return { updated: 0, error: `FX API responded with status ${response.status}` }
+      return {
+        updated: 0,
+        error: `FX API responded with status ${response.status}`,
+      }
     }
     data = (await response.json()) as FxApiResponse
   } catch (error) {
-    return { updated: 0, error: error instanceof Error ? error.message : 'FX API request failed' }
+    return {
+      updated: 0,
+      error: error instanceof Error ? error.message : 'FX API request failed',
+    }
   }
 
   if (data.result !== 'success') {
