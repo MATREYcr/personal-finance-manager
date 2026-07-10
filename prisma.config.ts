@@ -11,18 +11,13 @@ export default defineConfig({
   schema: 'prisma/schema.prisma',
   migrations: {
     path: 'prisma/migrations',
+    // Lets `prisma db seed` / `prisma migrate reset` populate the demo data.
+    seed: 'tsx prisma/seed.ts',
   },
-  // Prisma 7's prisma.config.ts datasource only accepts `url` (and
-  // `shadowDatabaseUrl`) — there is no `directUrl` key here, unlike the old
-  // schema.prisma datasource block. This `url` is CLI-only (migrate,
-  // validate, studio) and must be a session/direct connection so the schema
-  // engine gets proper prepared-statement/advisory-lock semantics — using
-  // the transaction-mode pooled DATABASE_URL here caused a reproducible
-  // "prepared statement already exists" error / indefinite hang against
-  // Supabase's shared pooler. DIRECT_URL (the session-mode pooler) is what
-  // should be used for CLI operations; DATABASE_URL (transaction-mode,
-  // better for concurrent serverless load) is used separately by the
-  // PrismaClient driver adapter at app runtime — see src/lib/db/index.ts.
+  // CLI ops (migrate, validate, studio) must use DIRECT_URL, a session/direct
+  // connection: the transaction-mode pooled DATABASE_URL caused "prepared
+  // statement already exists" hangs against Supabase's pooler. DATABASE_URL is
+  // used separately by the runtime driver adapter (src/lib/db/index.ts).
   datasource: {
     url: process.env['DIRECT_URL'],
   },
