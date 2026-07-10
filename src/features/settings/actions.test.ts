@@ -1,14 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-// vi.mock factories are hoisted above top-level const declarations, so the
-// mock objects they reference must be created via vi.hoisted() to avoid a
-// "Cannot access before initialization" error.
+// vi.mock is hoisted, so referenced mocks must come from vi.hoisted() to avoid init-order errors.
 const { mockRequireSession, mockDb } = vi.hoisted(() => ({
   mockRequireSession: vi.fn(),
   mockDb: { user: { update: vi.fn() } },
 }))
 
-vi.mock('@/lib/auth/session', () => ({ requireSession: () => mockRequireSession() }))
+vi.mock('@/lib/auth/session', () => ({
+  requireSession: () => mockRequireSession(),
+}))
 vi.mock('@/lib/db', () => ({ db: mockDb }))
 
 import { updateBaseCurrency } from './actions'

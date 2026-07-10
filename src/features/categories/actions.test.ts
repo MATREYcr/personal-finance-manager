@@ -1,8 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-// vi.mock factories are hoisted above top-level const declarations, so the
-// mock objects they reference must be created via vi.hoisted() to avoid a
-// "Cannot access before initialization" error.
+// vi.mock factories are hoisted, so mocks they reference must come from vi.hoisted().
 const { mockRequireSession, mockGetTranslations, mockDb } = vi.hoisted(() => ({
   mockRequireSession: vi.fn(),
   mockGetTranslations: vi.fn(),
@@ -13,8 +11,12 @@ const { mockRequireSession, mockGetTranslations, mockDb } = vi.hoisted(() => ({
   },
 }))
 
-vi.mock('@/lib/auth/session', () => ({ requireSession: () => mockRequireSession() }))
-vi.mock('next-intl/server', () => ({ getTranslations: () => mockGetTranslations() }))
+vi.mock('@/lib/auth/session', () => ({
+  requireSession: () => mockRequireSession(),
+}))
+vi.mock('next-intl/server', () => ({
+  getTranslations: () => mockGetTranslations(),
+}))
 vi.mock('@/lib/db', () => ({ db: mockDb }))
 vi.mock('next/cache', () => ({ updateTag: vi.fn() }))
 
@@ -31,7 +33,10 @@ describe('deleteCategory', () => {
     mockDb.transaction.count.mockResolvedValue(2)
     mockDb.recurringTransaction.count.mockResolvedValue(0)
 
-    await expect(deleteCategory('cat-1')).resolves.toEqual({ blocked: true, message: 'deleteError' })
+    await expect(deleteCategory('cat-1')).resolves.toEqual({
+      blocked: true,
+      message: 'deleteError',
+    })
     expect(mockDb.category.delete).not.toHaveBeenCalled()
   })
 
@@ -39,7 +44,10 @@ describe('deleteCategory', () => {
     mockDb.transaction.count.mockResolvedValue(0)
     mockDb.recurringTransaction.count.mockResolvedValue(1)
 
-    await expect(deleteCategory('cat-1')).resolves.toEqual({ blocked: true, message: 'deleteError' })
+    await expect(deleteCategory('cat-1')).resolves.toEqual({
+      blocked: true,
+      message: 'deleteError',
+    })
     expect(mockDb.category.delete).not.toHaveBeenCalled()
   })
 

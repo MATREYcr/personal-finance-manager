@@ -4,7 +4,9 @@ import { DEFAULT_CATEGORIES } from './default-categories'
 
 describe('seedDefaultCategories', () => {
   it('creates one category per default entry, scoped to the given user', async () => {
-    const createMany = vi.fn().mockResolvedValue({ count: DEFAULT_CATEGORIES.length })
+    const createMany = vi
+      .fn()
+      .mockResolvedValue({ count: DEFAULT_CATEGORIES.length })
     const mockDb = { category: { createMany } } as any
 
     await seedDefaultCategories(mockDb, 'user-1')

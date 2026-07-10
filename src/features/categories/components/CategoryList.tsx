@@ -2,7 +2,14 @@
 import { Pencil, Trash2 } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useCategories } from '../hooks/useCategories'
@@ -43,8 +50,12 @@ export function CategoryList() {
             {categories?.map((category) => (
               <TableRow key={category.id}>
                 <TableCell>{category.name}</TableCell>
-                <TableCell>{category.type === 'EXPENSE' ? t('typeExpense') : t('typeIncome')}</TableCell>
-                <TableCell className="text-right space-x-2">
+                <TableCell>
+                  {category.type === 'EXPENSE'
+                    ? t('typeExpense')
+                    : t('typeIncome')}
+                </TableCell>
+                <TableCell className="space-x-2 text-right">
                   <CategoryFormDialog
                     category={category}
                     trigger={

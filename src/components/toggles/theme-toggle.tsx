@@ -12,7 +12,7 @@ export function ThemeToggle() {
 
   useEffect(() => setMounted(true), [])
 
-  if (!mounted) return null // avoid a hydration mismatch flashing the wrong icon
+  if (!mounted) return null
 
   return (
     <Button
@@ -21,7 +21,11 @@ export function ThemeToggle() {
       aria-label={t('toggleTheme')}
       onClick={() => setTheme(resolvedTheme === 'dark' ? 'light' : 'dark')}
     >
-      {resolvedTheme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+      {resolvedTheme === 'dark' ? (
+        <Sun className="h-4 w-4" />
+      ) : (
+        <Moon className="h-4 w-4" />
+      )}
     </Button>
   )
 }

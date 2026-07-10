@@ -1,10 +1,6 @@
-import type { Transaction, Category } from '@prisma/client'
+import type { Transaction, Category, TransactionType } from '@prisma/client'
 
-// `amount` is `number`, not Prisma's `Decimal`: this row always crosses a
-// serialization boundary before any consumer sees it (the '/api/transactions'
-// JSON response, and the `'use cache'` serializer in queries.ts), and the RSC
-// serializer rejects Decimal instances outright. queries.ts coerces it with
-// Number() so the type reflects the real runtime shape.
+// `amount` is `number`, not Prisma's `Decimal`: queries.ts coerces it since the RSC serializer rejects Decimal.
 export type TransactionWithCategory = Omit<Transaction, 'amount'> & {
   amount: number
   category: Category
@@ -12,7 +8,7 @@ export type TransactionWithCategory = Omit<Transaction, 'amount'> & {
 
 export interface TransactionFilters {
   categoryId?: string
-  type?: 'EXPENSE' | 'INCOME'
+  type?: TransactionType
   from?: string // ISO date
   to?: string // ISO date
 }

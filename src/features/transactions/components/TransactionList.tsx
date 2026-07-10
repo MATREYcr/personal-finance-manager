@@ -3,7 +3,14 @@ import { useState } from 'react'
 import { Pencil, Trash2 } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Skeleton } from '@/components/ui/skeleton'
 import {
@@ -29,9 +36,7 @@ export function TransactionList() {
   const { data, isLoading } = useTransactions(filters, page)
   const { remove } = useTransactionMutations()
 
-  // Changing filters invalidates what "page 2" even means, so always land back
-  // on page 1. Reset it directly in the change handler (rather than in a
-  // useEffect keyed on `filters`) to avoid deriving state in an effect.
+  // Reset to page 1 here (not via a useEffect) to avoid deriving state in an effect.
   function handleFiltersChange(next: Filters) {
     setFilters(next)
     setPage(1)
@@ -43,7 +48,9 @@ export function TransactionList() {
     <div className="space-y-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <TransactionFilters filters={filters} onChange={handleFiltersChange} />
-        <TransactionFormDialog trigger={<Button>{t('newTransaction')}</Button>} />
+        <TransactionFormDialog
+          trigger={<Button>{t('newTransaction')}</Button>}
+        />
       </div>
 
       {isLoading || !data ? (
@@ -61,30 +68,40 @@ export function TransactionList() {
                   <TableHead>{t('columnDate')}</TableHead>
                   <TableHead>{t('columnCategory')}</TableHead>
                   <TableHead>{t('columnType')}</TableHead>
-                  <TableHead className="text-right">{t('columnAmount')}</TableHead>
-                  <TableHead className="text-right">{t('columnActions')}</TableHead>
+                  <TableHead className="text-right">
+                    {t('columnAmount')}
+                  </TableHead>
+                  <TableHead className="text-right">
+                    {t('columnActions')}
+                  </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {data.transactions.map((tx) => (
                   <TableRow key={tx.id}>
-                    {/* Transaction dates are calendar dates (stored as UTC
-                        midnight), not timestamps — format in UTC so the day
-                        shown matches what was entered regardless of the
-                        viewer's own timezone (otherwise a negative UTC offset
-                        rolls it back a day, e.g. UTC midnight July 6 reads as
-                        July 5 evening in America/Bogota). */}
-                    <TableCell>{new Date(tx.date).toLocaleDateString(undefined, { timeZone: 'UTC' })}</TableCell>
+                    {/* Format in UTC: dates are stored as UTC midnight calendar dates, not timestamps. */}
+                    <TableCell>
+                      {new Date(tx.date).toLocaleDateString(undefined, {
+                        timeZone: 'UTC',
+                      })}
+                    </TableCell>
                     <TableCell>{tx.category.name}</TableCell>
-                    <TableCell>{tx.type === 'EXPENSE' ? tCategories('typeExpense') : tCategories('typeIncome')}</TableCell>
+                    <TableCell>
+                      {tx.type === 'EXPENSE'
+                        ? tCategories('typeExpense')
+                        : tCategories('typeIncome')}
+                    </TableCell>
                     <TableCell
-                      className={`text-right tabular-nums font-medium ${
-                        tx.type === 'INCOME' ? 'text-(--positive)' : 'text-destructive'
+                      className={`text-right font-medium tabular-nums ${
+                        tx.type === 'INCOME'
+                          ? 'text-(--positive)'
+                          : 'text-destructive'
                       }`}
                     >
-                      {tx.type === 'INCOME' ? '+' : '−'}{Number(tx.amount).toFixed(2)} {tx.currency}
+                      {tx.type === 'INCOME' ? '+' : '−'}
+                      {Number(tx.amount).toFixed(2)} {tx.currency}
                     </TableCell>
-                    <TableCell className="text-right space-x-2">
+                    <TableCell className="space-x-2 text-right">
                       <TransactionFormDialog
                         transaction={tx}
                         trigger={
@@ -101,10 +118,7 @@ export function TransactionList() {
                         onClick={() =>
                           remove.mutate(tx.id, {
                             onSuccess: () => {
-                              // If this was the only row left on a page beyond
-                              // the first, deleting it would strand the user on
-                              // a now-empty out-of-range page ("Page 2 of 1").
-                              // Step back a page so they land on real rows.
+                              // Step back a page if this delete would strand the user on a now-empty page.
                               if (data.transactions.length === 1 && page > 1) {
                                 setPage((p) => p - 1)
                               }
@@ -121,17 +135,19 @@ export function TransactionList() {
             </Table>
           </div>
           <div className="flex items-center justify-between">
-            <p className="text-sm text-muted-foreground">{t('pageInfo', { page, totalPages })}</p>
-            {/* Pagination is a link-styled component; here it drives client
-                state, so prev/next carry onClick + aria-disabled (anchors
-                can't be natively disabled) rather than navigating by href. */}
+            <p className="text-muted-foreground text-sm">
+              {t('pageInfo', { page, totalPages })}
+            </p>
+            {/* onClick + aria-disabled instead of href: anchors can't be natively disabled. */}
             <Pagination className="mx-0 w-auto justify-end">
               <PaginationContent>
                 <PaginationItem>
                   <PaginationPrevious
                     text={t('previous')}
                     aria-disabled={page <= 1}
-                    className={page <= 1 ? 'pointer-events-none opacity-50' : undefined}
+                    className={
+                      page <= 1 ? 'pointer-events-none opacity-50' : undefined
+                    }
                     onClick={() => setPage((p) => Math.max(1, p - 1))}
                   />
                 </PaginationItem>
@@ -139,7 +155,11 @@ export function TransactionList() {
                   <PaginationNext
                     text={t('next')}
                     aria-disabled={page >= totalPages}
-                    className={page >= totalPages ? 'pointer-events-none opacity-50' : undefined}
+                    className={
+                      page >= totalPages
+                        ? 'pointer-events-none opacity-50'
+                        : undefined
+                    }
                     onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                   />
                 </PaginationItem>
@@ -148,7 +168,9 @@ export function TransactionList() {
           </div>
           {remove.isError && (
             <Alert variant="destructive">
-              <AlertDescription>{(remove.error as Error).message}</AlertDescription>
+              <AlertDescription>
+                {(remove.error as Error).message}
+              </AlertDescription>
             </Alert>
           )}
         </>

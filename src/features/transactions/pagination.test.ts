@@ -1,5 +1,9 @@
 import { describe, it, expect } from 'vitest'
-import { getPaginationParams, getTotalPages, TRANSACTIONS_PAGE_SIZE } from './pagination'
+import {
+  getPaginationParams,
+  getTotalPages,
+  TRANSACTIONS_PAGE_SIZE,
+} from './pagination'
 
 describe('getPaginationParams', () => {
   it('computes skip/take for the first page', () => {
@@ -11,7 +15,10 @@ describe('getPaginationParams', () => {
   })
 
   it('defaults to TRANSACTIONS_PAGE_SIZE when no pageSize is given', () => {
-    expect(getPaginationParams(1)).toEqual({ skip: 0, take: TRANSACTIONS_PAGE_SIZE })
+    expect(getPaginationParams(1)).toEqual({
+      skip: 0,
+      take: TRANSACTIONS_PAGE_SIZE,
+    })
   })
 })
 

@@ -1,6 +1,9 @@
 import type { Period } from './types'
 
-export function getPeriodRange(period: Period, reference: Date = new Date()): { start: Date; end: Date } {
+export function getPeriodRange(
+  period: Period,
+  reference: Date = new Date(),
+): { start: Date; end: Date } {
   const start = new Date(reference)
   const end = new Date(reference)
 

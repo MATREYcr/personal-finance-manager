@@ -10,7 +10,7 @@ function advanceDate(date: Date, frequency: RecurrenceFrequency): Date {
 
 export async function generateDueRecurringTransactions(
   db: PrismaClient,
-  now: Date = new Date()
+  now: Date = new Date(),
 ): Promise<{ generated: number }> {
   const dueRules = await db.recurringTransaction.findMany({
     where: { active: true, nextRunDate: { lte: now } },
@@ -18,8 +18,7 @@ export async function generateDueRecurringTransactions(
 
   let generated = 0
   for (const rule of dueRules) {
-    // Atomic per rule: if the process dies mid-loop, a retry never
-    // double-creates a transaction or skips advancing nextRunDate.
+    // Atomic per rule so a retry never double-creates a transaction or skips the date advance.
     await db.$transaction([
       db.transaction.create({
         data: {

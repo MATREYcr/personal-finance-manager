@@ -2,14 +2,20 @@ Primary data table for Transactions, Categories, Recurring lists.
 
 ```jsx
 <Table>
-  <TableHead><TableHeadRow>
-    <TableHeaderCell>Date</TableHeaderCell>
-    <TableHeaderCell align="right">Amount</TableHeaderCell>
-  </TableHeadRow></TableHead>
-  <TableBody><TableRow>
-    <TableCell>2026-07-01</TableCell>
-    <TableCell align="right" amount>3,000.00 USD</TableCell>
-  </TableRow></TableBody>
+  <TableHead>
+    <TableHeadRow>
+      <TableHeaderCell>Date</TableHeaderCell>
+      <TableHeaderCell align="right">Amount</TableHeaderCell>
+    </TableHeadRow>
+  </TableHead>
+  <TableBody>
+    <TableRow>
+      <TableCell>2026-07-01</TableCell>
+      <TableCell align="right" amount>
+        3,000.00 USD
+      </TableCell>
+    </TableRow>
+  </TableBody>
 </Table>
 ```
 

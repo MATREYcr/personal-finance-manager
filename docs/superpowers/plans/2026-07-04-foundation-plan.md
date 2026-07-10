@@ -62,11 +62,13 @@ personal-finance-manager/
 ### Task 1: Project scaffold, Tailwind, shadcn, Vitest
 
 **Files:**
+
 - Create: whole Next.js project (via CLI) rooted at `d:/personal_projects/personal-finance-manager`
 - Create: `vitest.config.ts`
 - Modify: `package.json` (add `test`/`test:watch` scripts)
 
 **Interfaces:**
+
 - Produces: a running `npm run dev` app, `npm test` running Vitest, shadcn's `cn()` util at `src/lib/utils.ts`, dark-mode-ready CSS variables in `globals.css` (from `shadcn init`).
 
 - [ ] **Step 1: Scaffold the Next.js app**
@@ -125,6 +127,7 @@ export default defineConfig({
 - [ ] **Step 7: Add test scripts to package.json**
 
 Add to `"scripts"`:
+
 ```json
 "test": "vitest run",
 "test:watch": "vitest"
@@ -133,6 +136,7 @@ Add to `"scripts"`:
 - [ ] **Step 8: Verify the test runner works**
 
 Create a throwaway `src/sanity.test.ts`:
+
 ```typescript
 import { describe, it, expect } from 'vitest'
 
@@ -142,6 +146,7 @@ describe('sanity', () => {
   })
 })
 ```
+
 Run: `npm test` — expect 1 passed. Then delete `src/sanity.test.ts`.
 
 - [ ] **Step 9: Apply the design system's color, radius, and shadow tokens**
@@ -234,12 +239,14 @@ git commit -m "feat(scaffold): initialize Next.js app with Tailwind, shadcn/ui, 
 **Prerequisite (human action, not automatable):** create a free Supabase project at supabase.com, then from Project Settings → Database copy the **pooled connection string** (port 6543, `?pgbouncer=true&connection_limit=1`) and the **direct connection string** (port 5432).
 
 **Files:**
+
 - Create: `prisma/schema.prisma`
 - Create: `prisma.config.ts`
 - Create: `src/lib/db/index.ts`
 - Create: `.env.example`
 
 **Interfaces:**
+
 - Produces: `db` singleton at `@/lib/db`, used by every later feature.
 
 **Prisma version note:** as of Prisma 7, datasource URLs no longer live in
@@ -260,8 +267,7 @@ Supabase project while building this task:
    reproducible `ERROR: prepared statement "s1" already exists` and, on
    other attempts, an indefinite hang — PgBouncer's transaction pooling
    mode doesn't give the schema engine the session-level guarantees
-   `migrate`/`validate` need. `DIRECT_URL`'s session-mode pooler (port
-   5432) does not have this problem.
+   `migrate`/`validate` need. `DIRECT_URL`'s session-mode pooler (port 5432) does not have this problem.
 2. **Explicit `.env.local` loading.** A bare `import "dotenv/config"`
    only loads `.env`, never `.env.local` — this project (like Next.js
    convention) keeps real secrets in `.env.local`, so `prisma.config.ts`
@@ -328,7 +334,7 @@ step.
 Prisma 7's `PrismaClient` requires an explicit driver adapter — it will
 not implicitly read any connection string on its own. Use the pooled
 `DATABASE_URL` here (transaction-mode pooling suits the app's normal
-concurrent query traffic; this is intentionally the *other* URL from
+concurrent query traffic; this is intentionally the _other_ URL from
 `prisma.config.ts`'s `DIRECT_URL`).
 
 ```typescript
@@ -377,6 +383,7 @@ git commit -m "chore(db): configure Prisma with Supabase Postgres datasource"
 ### Task 3: Internationalization (next-intl) — Spanish default, English second
 
 **Files:**
+
 - Create: `messages/es.json`
 - Create: `messages/en.json`
 - Create: `src/i18n/routing.ts`
@@ -387,6 +394,7 @@ git commit -m "chore(db): configure Prisma with Supabase Postgres datasource"
 - Create: `src/app/[locale]/layout.tsx` (replaces the default `src/app/layout.tsx` generated in Task 1 — delete that file, and also delete the sibling `src/app/page.tsx` create-next-app generated, since it's unreachable once the locale middleware/proxy is in place and would otherwise sit as dead, misleading placeholder content)
 
 **Interfaces:**
+
 - Produces: `routing` (locales, defaultLocale) at `@/i18n/routing`; `Link`, `redirect`, `usePathname`, `useRouter`, `getPathname` at `@/i18n/navigation`; the `messages/*.json` catalogs every later plan adds its namespace to.
 
 - [ ] **Step 1: Install next-intl**
@@ -417,7 +425,9 @@ import { routing } from './routing'
 
 export default getRequestConfig(async ({ requestLocale }) => {
   const requested = await requestLocale
-  const locale = hasLocale(routing.locales, requested) ? requested : routing.defaultLocale
+  const locale = hasLocale(routing.locales, requested)
+    ? requested
+    : routing.defaultLocale
 
   return {
     locale,
@@ -433,7 +443,8 @@ export default getRequestConfig(async ({ requestLocale }) => {
 import { createNavigation } from 'next-intl/navigation'
 import { routing } from './routing'
 
-export const { Link, redirect, usePathname, useRouter, getPathname } = createNavigation(routing)
+export const { Link, redirect, usePathname, useRouter, getPathname } =
+  createNavigation(routing)
 ```
 
 - [ ] **Step 5: Wrap Next config with the next-intl plugin**
@@ -556,11 +567,13 @@ git commit -m "feat(i18n): add next-intl routing with Spanish default and Englis
 ### Task 4: Light/dark mode (next-themes)
 
 **Files:**
+
 - Create: `src/components/theme-provider.tsx`
 - Create: `src/components/theme-toggle.tsx`
 - Modify: `src/app/[locale]/layout.tsx`
 
 **Interfaces:**
+
 - Produces: `<ThemeProvider>` (wraps `next-themes`) and `<ThemeToggle>`, consumed by Task 7's nav shell.
 
 - [ ] **Step 1: Install next-themes**
@@ -654,6 +667,7 @@ git commit -m "feat(theme): add next-themes light/dark mode support"
 ### Task 5: Better Auth setup
 
 **Files:**
+
 - Create: `src/lib/auth/index.ts`
 - Create: `src/lib/auth/client.ts`
 - Create: `src/lib/auth/session.ts`
@@ -666,6 +680,7 @@ git commit -m "feat(theme): add next-themes light/dark mode support"
 - Modify: `prisma/schema.prisma` (adds User/Session/Account/Verification, generated)
 
 **Interfaces:**
+
 - Produces: `auth` (server instance) and `requireSession()` at `@/lib/auth` / `@/lib/auth/session`, `signIn`/`signUp`/`signOut`/`useSession` at `@/lib/auth/client`. `session.user.id` (string) and `session.user.baseCurrency` (string) are used by every later feature.
 
 - [ ] **Step 1: Install Better Auth**
@@ -787,16 +802,23 @@ export default async function proxy(request: NextRequest) {
 
   const localeMatch = request.nextUrl.pathname.match(/^\/(es|en)(\/|$)/)
   const pathWithoutLocale = localeMatch
-    ? request.nextUrl.pathname.slice(localeMatch[0].length - (localeMatch[2] ? 1 : 0)) || '/'
+    ? request.nextUrl.pathname.slice(
+        localeMatch[0].length - (localeMatch[2] ? 1 : 0),
+      ) || '/'
     : request.nextUrl.pathname
 
-  const isProtected = protectedPaths.some((p) => pathWithoutLocale.startsWith(p))
+  const isProtected = protectedPaths.some((p) =>
+    pathWithoutLocale.startsWith(p),
+  )
 
   if (isProtected) {
-    const { data: session } = await betterFetch<Session>('/api/auth/get-session', {
-      baseURL: request.nextUrl.origin,
-      headers: { cookie: request.headers.get('cookie') ?? '' },
-    })
+    const { data: session } = await betterFetch<Session>(
+      '/api/auth/get-session',
+      {
+        baseURL: request.nextUrl.origin,
+        headers: { cookie: request.headers.get('cookie') ?? '' },
+      },
+    )
 
     if (!session) {
       const locale = localeMatch?.[1] ?? routing.defaultLocale
@@ -999,9 +1021,11 @@ git commit -m "feat(auth): add Better Auth email/password sign-in and sign-up"
 ### Task 6: Domain Prisma models (full schema for all v1 subsystems)
 
 **Files:**
+
 - Modify: `prisma/schema.prisma`
 
 **Interfaces:**
+
 - Produces: `Category`, `Transaction`, `RecurringTransaction`, `ExchangeRate` models and the `TransactionType` / `RecurrenceFrequency` enums. Every later plan (Categories, Transactions, Recurring Transactions, Currency/FX/Dashboard) consumes these — none of them modify `schema.prisma` again for these tables.
 
 - [ ] **Step 1: Add the domain enums and models**
@@ -1108,6 +1132,7 @@ git commit -m "feat(schema): add Category, Transaction, RecurringTransaction, Ex
 ### Task 7: TanStack Query provider, shared query keys, and protected app shell
 
 **Files:**
+
 - Create: `src/lib/query/client.tsx`
 - Create: `src/lib/query/keys.ts`
 - Modify: `src/app/[locale]/layout.tsx`
@@ -1117,6 +1142,7 @@ git commit -m "feat(schema): add Category, Transaction, RecurringTransaction, Ex
 - Modify: `messages/es.json`, `messages/en.json` (add full `Common.nav` / `Common.actions`)
 
 **Interfaces:**
+
 - Produces: `<QueryProvider>` wrapping the app, `queryKeys` (extended by every later plan — each adds its own top-level key, e.g. `queryKeys.categories`), `<LanguageToggle>`, the persistent nav shell (sidebar + topbar, per the mockup) all authenticated feature pages render inside.
 
 - [ ] **Step 1: Install TanStack Query**
@@ -1449,6 +1475,7 @@ git commit -m "feat(shell): add TanStack Query provider, shared query keys, and 
 ```bash
 npm test
 ```
+
 Expected: passes (only the scaffold sanity — no feature tests exist yet in this plan).
 
 - [ ] **Step 2: Push and open PR**

@@ -5,10 +5,7 @@ const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined
 }
 
-// Prisma 7 requires an explicit driver adapter at runtime — the datasource
-// block in schema.prisma no longer carries a `url`, so the connection string
-// must be provided here (this is separate from prisma.config.ts, which only
-// configures the Prisma CLI for migrations/generate).
+// Prisma 7 requires an explicit driver adapter at runtime; schema.prisma's datasource no longer carries a `url`.
 const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL })
 
 export const db = globalForPrisma.prisma ?? new PrismaClient({ adapter })

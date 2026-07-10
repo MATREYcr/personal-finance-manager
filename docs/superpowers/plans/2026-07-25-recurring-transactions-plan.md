@@ -61,6 +61,7 @@ src/app/[locale]/(dashboard)/recurring-transactions/page.tsx
 ### Task 1: Recurring transactions queries and actions
 
 **Files:**
+
 - Create: `src/features/recurring-transactions/types.ts`
 - Create: `src/features/recurring-transactions/queries.ts`
 - Create: `src/features/recurring-transactions/actions.ts`
@@ -68,6 +69,7 @@ src/app/[locale]/(dashboard)/recurring-transactions/page.tsx
 - Modify: `src/lib/query/keys.ts` (add the `recurringTransactions` key)
 
 **Interfaces:**
+
 - Consumes: `requireSession`, `db`, `RecurringTransaction`/`RecurrenceFrequency` from `@prisma/client`.
 - Produces: `getRecurringTransactions(userId)`, `createRecurringTransaction(input)`, `updateRecurringTransaction(input)`, `setRecurringTransactionActive(id, active)`, `deleteRecurringTransaction(id)` — consumed by Task 2's UI.
 
@@ -86,7 +88,9 @@ src/app/[locale]/(dashboard)/recurring-transactions/page.tsx
 // src/features/recurring-transactions/types.ts
 import type { RecurringTransaction, Category } from '@prisma/client'
 
-export type RecurringTransactionWithCategory = RecurringTransaction & { category: Category }
+export type RecurringTransactionWithCategory = RecurringTransaction & {
+  category: Category
+}
 ```
 
 - [ ] **Step 3: Write the failing test**
@@ -107,7 +111,9 @@ const { mockRequireSession, mockDb } = vi.hoisted(() => ({
   },
 }))
 
-vi.mock('@/lib/auth/session', () => ({ requireSession: () => mockRequireSession() }))
+vi.mock('@/lib/auth/session', () => ({
+  requireSession: () => mockRequireSession(),
+}))
 vi.mock('@/lib/db', () => ({ db: mockDb }))
 vi.mock('next/cache', () => ({ updateTag: vi.fn() }))
 
@@ -125,7 +131,10 @@ describe('createRecurringTransaction', () => {
     // (numeric valueOf/toString) so the assertion below also proves the
     // action coerces it to a plain number before returning (see toPlainRule).
     const decimalLike = { valueOf: () => 3000, toString: () => '3000' }
-    mockDb.recurringTransaction.create.mockResolvedValue({ id: 'rec-1', amount: decimalLike })
+    mockDb.recurringTransaction.create.mockResolvedValue({
+      id: 'rec-1',
+      amount: decimalLike,
+    })
 
     const result = await createRecurringTransaction({
       categoryId: 'cat-1',
@@ -200,7 +209,9 @@ const recurringInputSchema = z.object({
 })
 
 async function assertOwnsCategory(userId: string, categoryId: string) {
-  const category = await db.category.findFirst({ where: { id: categoryId, userId } })
+  const category = await db.category.findFirst({
+    where: { id: categoryId, userId },
+  })
   if (!category) throw new Error('That category does not exist for this user')
 }
 
@@ -219,9 +230,12 @@ function toPlainRule<T extends { amount: unknown }>(rule: T) {
 // case (the UI only ever offers the current user's own categories in the
 // select), not a user-facing validation message, so it is intentionally not
 // translated — same rationale as the Transactions plan's identical check.
-export async function createRecurringTransaction(input: z.infer<typeof recurringInputSchema>) {
+export async function createRecurringTransaction(
+  input: z.infer<typeof recurringInputSchema>,
+) {
   const session = await requireSession()
-  const { categoryId, type, amount, currency, frequency, startDate, note } = recurringInputSchema.parse(input)
+  const { categoryId, type, amount, currency, frequency, startDate, note } =
+    recurringInputSchema.parse(input)
 
   await assertOwnsCategory(session.user.id, categoryId)
 
@@ -243,11 +257,16 @@ export async function createRecurringTransaction(input: z.infer<typeof recurring
   return toPlainRule(rule)
 }
 
-const updateRecurringInputSchema = recurringInputSchema.extend({ id: z.string().min(1) })
+const updateRecurringInputSchema = recurringInputSchema.extend({
+  id: z.string().min(1),
+})
 
-export async function updateRecurringTransaction(input: z.infer<typeof updateRecurringInputSchema>) {
+export async function updateRecurringTransaction(
+  input: z.infer<typeof updateRecurringInputSchema>,
+) {
   const session = await requireSession()
-  const { id, categoryId, type, amount, currency, frequency, note } = updateRecurringInputSchema.parse(input)
+  const { id, categoryId, type, amount, currency, frequency, note } =
+    updateRecurringInputSchema.parse(input)
 
   await assertOwnsCategory(session.user.id, categoryId)
 
@@ -262,15 +281,24 @@ export async function updateRecurringTransaction(input: z.infer<typeof updateRec
   return toPlainRule(rule)
 }
 
-const setActiveInputSchema = z.object({ id: z.string().min(1), active: z.boolean() })
+const setActiveInputSchema = z.object({
+  id: z.string().min(1),
+  active: z.boolean(),
+})
 
-export async function setRecurringTransactionActive(rawId: string, rawActive: boolean) {
+export async function setRecurringTransactionActive(
+  rawId: string,
+  rawActive: boolean,
+) {
   const session = await requireSession()
   // Validate BOTH args — a Server Action is an addressable HTTP endpoint, so a
   // caller bypassing the TS layer could send a non-boolean `active` straight
   // into Prisma. The plan's "every Server Action Zod-validates input" applies
   // to `active`, not just the id.
-  const { id, active } = setActiveInputSchema.parse({ id: rawId, active: rawActive })
+  const { id, active } = setActiveInputSchema.parse({
+    id: rawId,
+    active: rawActive,
+  })
   const rule = await db.recurringTransaction.update({
     where: { id, userId: session.user.id },
     data: { active },
@@ -282,7 +310,9 @@ export async function setRecurringTransactionActive(rawId: string, rawActive: bo
 export async function deleteRecurringTransaction(rawId: string) {
   const session = await requireSession()
   const id = z.string().min(1).parse(rawId)
-  await db.recurringTransaction.delete({ where: { id, userId: session.user.id } })
+  await db.recurringTransaction.delete({
+    where: { id, userId: session.user.id },
+  })
   updateTag('recurring-transactions')
 }
 ```
@@ -304,6 +334,7 @@ git commit -m "feat(recurring): add CRUD queries/actions for recurring transacti
 ### Task 2: Recurring transactions UI
 
 **Files:**
+
 - Create: `src/app/api/recurring-transactions/route.ts`
 - Create: `src/features/recurring-transactions/hooks/useRecurringTransactions.ts`
 - Create: `src/features/recurring-transactions/hooks/useRecurringTransactionMutations.ts`
@@ -313,6 +344,7 @@ git commit -m "feat(recurring): add CRUD queries/actions for recurring transacti
 - Modify: `messages/es.json`, `messages/en.json` (add the `RecurringTransactions` namespace)
 
 **Interfaces:**
+
 - Consumes: everything from Task 1, plus `useCategories` (Categories plan).
 - Produces: a working `/recurring-transactions` page.
 
@@ -367,16 +399,27 @@ import {
 
 export function useRecurringTransactionMutations() {
   const qc = useQueryClient()
-  const invalidate = () => qc.invalidateQueries({ queryKey: queryKeys.recurringTransactions.all })
+  const invalidate = () =>
+    qc.invalidateQueries({ queryKey: queryKeys.recurringTransactions.all })
 
   return {
-    create: useMutation({ mutationFn: createRecurringTransaction, onSuccess: invalidate }),
-    update: useMutation({ mutationFn: updateRecurringTransaction, onSuccess: invalidate }),
-    toggleActive: useMutation({
-      mutationFn: ({ id, active }: { id: string; active: boolean }) => setRecurringTransactionActive(id, active),
+    create: useMutation({
+      mutationFn: createRecurringTransaction,
       onSuccess: invalidate,
     }),
-    remove: useMutation({ mutationFn: deleteRecurringTransaction, onSuccess: invalidate }),
+    update: useMutation({
+      mutationFn: updateRecurringTransaction,
+      onSuccess: invalidate,
+    }),
+    toggleActive: useMutation({
+      mutationFn: ({ id, active }: { id: string; active: boolean }) =>
+        setRecurringTransactionActive(id, active),
+      onSuccess: invalidate,
+    }),
+    remove: useMutation({
+      mutationFn: deleteRecurringTransaction,
+      onSuccess: invalidate,
+    }),
   }
 }
 ```
@@ -771,12 +814,14 @@ git commit -m "feat(recurring): build recurring transactions management UI"
 ### Task 3: Recurring transaction generation cron
 
 **Files:**
+
 - Create: `src/features/recurring-transactions/generate.ts`
 - Create: `src/features/recurring-transactions/generate.test.ts`
 - Create: `src/app/api/cron/recurring-transactions/route.ts`
 - Create or modify: `vercel.json`
 
 **Interfaces:**
+
 - Consumes: `db`, `RecurringTransaction`/`RecurrenceFrequency` from `@prisma/client`.
 - Produces: `generateDueRecurringTransactions(db, now?)`, hit daily by Vercel Cron.
 
@@ -815,7 +860,10 @@ describe('generateDueRecurringTransactions', () => {
     }
     const db = makeMockDb([rule])
 
-    const result = await generateDueRecurringTransactions(db, new Date('2026-07-04'))
+    const result = await generateDueRecurringTransactions(
+      db,
+      new Date('2026-07-04'),
+    )
 
     expect(result).toEqual({ generated: 1 })
     expect(db.transaction.create).toHaveBeenCalledWith({
@@ -838,12 +886,26 @@ describe('generateDueRecurringTransactions', () => {
 
   it('advances WEEKLY by 7 days and YEARLY by 1 year', async () => {
     const weekly = {
-      id: 'rec-w', userId: 'u', categoryId: 'c', type: 'EXPENSE', amount: 10,
-      currency: 'USD', note: null, frequency: 'WEEKLY', nextRunDate: new Date('2026-07-01'),
+      id: 'rec-w',
+      userId: 'u',
+      categoryId: 'c',
+      type: 'EXPENSE',
+      amount: 10,
+      currency: 'USD',
+      note: null,
+      frequency: 'WEEKLY',
+      nextRunDate: new Date('2026-07-01'),
     }
     const yearly = {
-      id: 'rec-y', userId: 'u', categoryId: 'c', type: 'EXPENSE', amount: 10,
-      currency: 'USD', note: null, frequency: 'YEARLY', nextRunDate: new Date('2026-07-01'),
+      id: 'rec-y',
+      userId: 'u',
+      categoryId: 'c',
+      type: 'EXPENSE',
+      amount: 10,
+      currency: 'USD',
+      note: null,
+      frequency: 'YEARLY',
+      nextRunDate: new Date('2026-07-01'),
     }
     const db = makeMockDb([weekly, yearly])
 
@@ -893,7 +955,7 @@ function advanceDate(date: Date, frequency: RecurrenceFrequency): Date {
 
 export async function generateDueRecurringTransactions(
   db: PrismaClient,
-  now: Date = new Date()
+  now: Date = new Date(),
 ): Promise<{ generated: number }> {
   const dueRules = await db.recurringTransaction.findMany({
     where: { active: true, nextRunDate: { lte: now } },
@@ -970,6 +1032,7 @@ export async function GET(request: NextRequest) {
 - [ ] **Step 6: Register the cron schedule**
 
 If `vercel.json` doesn't exist yet, create it:
+
 ```json
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
@@ -981,14 +1044,17 @@ If `vercel.json` doesn't exist yet, create it:
   ]
 }
 ```
+
 If it already exists (e.g. the Currency/FX/Dashboard branch merged first and added its own `fx-rates` entry), add this object to the existing `crons` array instead of overwriting the file.
 
 - [ ] **Step 7: Manual verification**
 
 Create a MONTHLY recurring rule with `startDate` set to today or earlier (via the UI from Task 2), then:
+
 ```bash
 curl -H "Authorization: Bearer $CRON_SECRET" http://localhost:3000/api/cron/recurring-transactions
 ```
+
 Expected: `{"generated": 1}`. Confirm in `/es/transactions` that a new transaction appeared, and in `/es/recurring-transactions` that `nextRunDate` advanced by one month. Run the same curl again immediately — expect `{"generated": 0}`.
 
 - [ ] **Step 8: Commit**

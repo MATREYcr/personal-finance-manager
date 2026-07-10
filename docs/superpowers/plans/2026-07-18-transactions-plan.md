@@ -52,6 +52,7 @@ src/app/[locale]/(dashboard)/transactions/page.tsx
 ### Task 1: Transactions queries and actions
 
 **Files:**
+
 - Create: `src/features/transactions/types.ts`
 - Create: `src/features/transactions/pagination.ts`
 - Create: `src/features/transactions/pagination.test.ts`
@@ -61,6 +62,7 @@ src/app/[locale]/(dashboard)/transactions/page.tsx
 - Modify: `src/lib/query/keys.ts` (add the `transactions` key)
 
 **Interfaces:**
+
 - Consumes: `requireSession` (Foundation), `db` (Foundation), `Transaction`/`Category`/`TransactionType` from `@prisma/client`.
 - Produces: `getTransactions(userId, filters, page)`, `createTransaction(input)`, `updateTransaction(input)`, `deleteTransaction(id)`, `TransactionFilters`/`PaginatedTransactions` types, `TRANSACTIONS_PAGE_SIZE`, `getTotalPages`, `queryKeys.transactions` — consumed by Task 2's UI and later by the Recurring Transactions plan's generation cron (which creates `Transaction` rows directly via `db`, not via this module, but must match this schema/shape).
 
@@ -110,7 +112,11 @@ export interface PaginatedTransactions {
 ```typescript
 // src/features/transactions/pagination.test.ts
 import { describe, it, expect } from 'vitest'
-import { getPaginationParams, getTotalPages, TRANSACTIONS_PAGE_SIZE } from './pagination'
+import {
+  getPaginationParams,
+  getTotalPages,
+  TRANSACTIONS_PAGE_SIZE,
+} from './pagination'
 
 describe('getPaginationParams', () => {
   it('computes skip/take for the first page', () => {
@@ -122,7 +128,10 @@ describe('getPaginationParams', () => {
   })
 
   it('defaults to TRANSACTIONS_PAGE_SIZE when no pageSize is given', () => {
-    expect(getPaginationParams(1)).toEqual({ skip: 0, take: TRANSACTIONS_PAGE_SIZE })
+    expect(getPaginationParams(1)).toEqual({
+      skip: 0,
+      take: TRANSACTIONS_PAGE_SIZE,
+    })
   })
 })
 
@@ -152,11 +161,17 @@ Expected: FAIL — `Cannot find module './pagination'`.
 // src/features/transactions/pagination.ts
 export const TRANSACTIONS_PAGE_SIZE = 20
 
-export function getPaginationParams(page: number, pageSize: number = TRANSACTIONS_PAGE_SIZE) {
+export function getPaginationParams(
+  page: number,
+  pageSize: number = TRANSACTIONS_PAGE_SIZE,
+) {
   return { skip: (page - 1) * pageSize, take: pageSize }
 }
 
-export function getTotalPages(totalCount: number, pageSize: number = TRANSACTIONS_PAGE_SIZE) {
+export function getTotalPages(
+  totalCount: number,
+  pageSize: number = TRANSACTIONS_PAGE_SIZE,
+) {
   return Math.max(1, Math.ceil(totalCount / pageSize))
 }
 ```
@@ -184,7 +199,9 @@ const { mockRequireSession, mockDb } = vi.hoisted(() => ({
   },
 }))
 
-vi.mock('@/lib/auth/session', () => ({ requireSession: () => mockRequireSession() }))
+vi.mock('@/lib/auth/session', () => ({
+  requireSession: () => mockRequireSession(),
+}))
 vi.mock('@/lib/db', () => ({ db: mockDb }))
 vi.mock('next/cache', () => ({ updateTag: vi.fn() }))
 
@@ -206,7 +223,7 @@ describe('createTransaction', () => {
         amount: 10,
         currency: 'USD',
         date: '2026-07-01',
-      })
+      }),
     ).rejects.toThrow(/category/i)
     expect(mockDb.transaction.create).not.toHaveBeenCalled()
   })
@@ -257,7 +274,7 @@ import type { TransactionFilters, PaginatedTransactions } from './types'
 export async function getTransactions(
   userId: string,
   filters: TransactionFilters = {},
-  page: number = 1
+  page: number = 1,
 ): Promise<PaginatedTransactions> {
   cacheTag('transactions')
 
@@ -312,18 +329,31 @@ const transactionInputSchema = z.object({
 })
 
 async function assertOwnsCategory(userId: string, categoryId: string) {
-  const category = await db.category.findFirst({ where: { id: categoryId, userId } })
+  const category = await db.category.findFirst({
+    where: { id: categoryId, userId },
+  })
   if (!category) throw new Error('That category does not exist for this user')
 }
 
-export async function createTransaction(input: z.infer<typeof transactionInputSchema>) {
+export async function createTransaction(
+  input: z.infer<typeof transactionInputSchema>,
+) {
   const session = await requireSession()
-  const { categoryId, type, amount, currency, date, note } = transactionInputSchema.parse(input)
+  const { categoryId, type, amount, currency, date, note } =
+    transactionInputSchema.parse(input)
 
   await assertOwnsCategory(session.user.id, categoryId)
 
   const transaction = await db.transaction.create({
-    data: { userId: session.user.id, categoryId, type, amount, currency, date: new Date(date), note },
+    data: {
+      userId: session.user.id,
+      categoryId,
+      type,
+      amount,
+      currency,
+      date: new Date(date),
+      note,
+    },
   })
 
   updateTag('transactions')
@@ -334,9 +364,12 @@ const updateTransactionInputSchema = transactionInputSchema.extend({
   id: z.string().min(1),
 })
 
-export async function updateTransaction(input: z.infer<typeof updateTransactionInputSchema>) {
+export async function updateTransaction(
+  input: z.infer<typeof updateTransactionInputSchema>,
+) {
   const session = await requireSession()
-  const { id, categoryId, type, amount, currency, date, note } = updateTransactionInputSchema.parse(input)
+  const { id, categoryId, type, amount, currency, date, note } =
+    updateTransactionInputSchema.parse(input)
 
   await assertOwnsCategory(session.user.id, categoryId)
 
@@ -376,6 +409,7 @@ git commit -m "feat(transactions): add paginated CRUD queries/actions with categ
 ### Task 2: Transactions UI
 
 **Files:**
+
 - Create: `src/app/api/transactions/route.ts`
 - Create: `src/features/transactions/hooks/useTransactions.ts`
 - Create: `src/features/transactions/hooks/useTransactionMutations.ts`
@@ -386,6 +420,7 @@ git commit -m "feat(transactions): add paginated CRUD queries/actions with categ
 - Modify: `messages/es.json`, `messages/en.json` (add the `Transactions` namespace)
 
 **Interfaces:**
+
 - Consumes: `getTransactions`/`createTransaction`/`updateTransaction`/`deleteTransaction` (Task 1), `useCategories` (Categories plan), `queryKeys.transactions` (Task 1).
 - Produces: a working `/transactions` page with filters. `TransactionFormDialog`'s field set (categoryId, type, amount, currency, date, note) is the pattern the Recurring Transactions plan's form reuses with two added fields (frequency, startDate).
 
@@ -403,7 +438,8 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
   const filters: TransactionFilters = {
     categoryId: searchParams.get('categoryId') ?? undefined,
-    type: (searchParams.get('type') as 'EXPENSE' | 'INCOME' | null) ?? undefined,
+    type:
+      (searchParams.get('type') as 'EXPENSE' | 'INCOME' | null) ?? undefined,
     from: searchParams.get('from') ?? undefined,
     to: searchParams.get('to') ?? undefined,
   }
@@ -424,10 +460,16 @@ import type { TransactionFilters, PaginatedTransactions } from '../types'
 
 export function useTransactions(filters: TransactionFilters, page: number) {
   return useQuery({
-    queryKey: queryKeys.transactions.list(filters as Record<string, string | undefined>, page),
+    queryKey: queryKeys.transactions.list(
+      filters as Record<string, string | undefined>,
+      page,
+    ),
     queryFn: async (): Promise<PaginatedTransactions> => {
       const params = new URLSearchParams(
-        Object.entries(filters).filter(([, v]) => v !== undefined) as [string, string][]
+        Object.entries(filters).filter(([, v]) => v !== undefined) as [
+          string,
+          string,
+        ][],
       )
       params.set('page', String(page))
       const res = await fetch(`/api/transactions?${params.toString()}`)
@@ -445,16 +487,30 @@ export function useTransactions(filters: TransactionFilters, page: number) {
 'use client'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { queryKeys } from '@/lib/query/keys'
-import { createTransaction, updateTransaction, deleteTransaction } from '../actions'
+import {
+  createTransaction,
+  updateTransaction,
+  deleteTransaction,
+} from '../actions'
 
 export function useTransactionMutations() {
   const qc = useQueryClient()
-  const invalidate = () => qc.invalidateQueries({ queryKey: queryKeys.transactions.all })
+  const invalidate = () =>
+    qc.invalidateQueries({ queryKey: queryKeys.transactions.all })
 
   return {
-    create: useMutation({ mutationFn: createTransaction, onSuccess: invalidate }),
-    update: useMutation({ mutationFn: updateTransaction, onSuccess: invalidate }),
-    remove: useMutation({ mutationFn: deleteTransaction, onSuccess: invalidate }),
+    create: useMutation({
+      mutationFn: createTransaction,
+      onSuccess: invalidate,
+    }),
+    update: useMutation({
+      mutationFn: updateTransaction,
+      onSuccess: invalidate,
+    }),
+    remove: useMutation({
+      mutationFn: deleteTransaction,
+      onSuccess: invalidate,
+    }),
   }
 }
 ```

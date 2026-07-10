@@ -39,7 +39,7 @@ now) gets set by the generation cron in this spec.
 - **Editing a rule never retroactively changes past transactions.** Each
   generated `Transaction` stores its own copy of amount/category/currency
   at creation time — editing the rule only affects transactions generated
-  *after* the edit.
+  _after_ the edit.
 - **The cron is safe to re-run.** Per rule, creating the `Transaction` and
   advancing `nextRunDate` happen atomically (one DB transaction) — so a
   retry after a partial failure never double-creates a transaction or
@@ -48,6 +48,6 @@ now) gets set by the generation cron in this spec.
 ## Testing
 
 - Unit tests for the generation logic: due-date detection (`nextRunDate <=
-  now` and `active = true`), correct date advancement per frequency
+now` and `active = true`), correct date advancement per frequency
   (WEEKLY = +7 days, MONTHLY = +1 month, YEARLY = +1 year), and that the
   query only selects active, due rules.

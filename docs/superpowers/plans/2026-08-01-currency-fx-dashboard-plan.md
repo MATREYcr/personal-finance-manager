@@ -60,10 +60,12 @@ README.md
 ### Task 1: Currency conversion helper
 
 **Files:**
+
 - Create: `src/lib/currency/convert.ts`
 - Create: `src/lib/currency/convert.test.ts`
 
 **Interfaces:**
+
 - Produces: `PIVOT_CURRENCY`, `RateMap`, `convertAmount(amount, from, to, rates)` — consumed by Task 4 (dashboard).
 
 - [ ] **Step 1: Write the failing tests**
@@ -111,14 +113,21 @@ export const PIVOT_CURRENCY = 'USD'
 
 export type RateMap = Record<string, number>
 
-export function convertAmount(amount: number, from: string, to: string, rates: RateMap): number {
+export function convertAmount(
+  amount: number,
+  from: string,
+  to: string,
+  rates: RateMap,
+): number {
   if (from === to) return amount
 
   const rateFrom = from === PIVOT_CURRENCY ? 1 : rates[from]
   const rateTo = to === PIVOT_CURRENCY ? 1 : rates[to]
 
-  if (rateFrom === undefined) throw new Error(`Missing exchange rate for currency: ${from}`)
-  if (rateTo === undefined) throw new Error(`Missing exchange rate for currency: ${to}`)
+  if (rateFrom === undefined)
+    throw new Error(`Missing exchange rate for currency: ${from}`)
+  if (rateTo === undefined)
+    throw new Error(`Missing exchange rate for currency: ${to}`)
 
   const amountInPivot = amount / rateFrom
   return amountInPivot * rateTo
@@ -142,12 +151,14 @@ git commit -m "feat(currency): add pivot-based currency conversion helper"
 ### Task 2: Exchange rate fetch cron
 
 **Files:**
+
 - Create: `src/features/exchange-rates/fetch-rates.ts`
 - Create: `src/features/exchange-rates/fetch-rates.test.ts`
 - Create: `src/app/api/cron/fx-rates/route.ts`
 - Create or modify: `vercel.json`
 
 **Interfaces:**
+
 - Consumes: `db`, `PIVOT_CURRENCY` (Task 1).
 - Produces: `refreshExchangeRates(db, fetchImpl)`, hit daily by Vercel Cron; populates `ExchangeRate` rows consumed by Task 4.
 
@@ -170,7 +181,10 @@ describe('refreshExchangeRates', () => {
       }),
     })
 
-    const result = await refreshExchangeRates(mockDb, mockFetch as unknown as typeof fetch)
+    const result = await refreshExchangeRates(
+      mockDb,
+      mockFetch as unknown as typeof fetch,
+    )
 
     expect(result).toEqual({ updated: 2 }) // USD (the pivot) is skipped
     expect(mockDb.exchangeRate.upsert).toHaveBeenCalledWith({
@@ -189,7 +203,10 @@ describe('refreshExchangeRates', () => {
     const mockDb = { exchangeRate: { upsert: vi.fn() } } as any
     const mockFetch = vi.fn().mockResolvedValue({ ok: false })
 
-    const result = await refreshExchangeRates(mockDb, mockFetch as unknown as typeof fetch)
+    const result = await refreshExchangeRates(
+      mockDb,
+      mockFetch as unknown as typeof fetch,
+    )
 
     expect(result).toEqual({ updated: 0, error: expect.any(String) })
     expect(mockDb.exchangeRate.upsert).not.toHaveBeenCalled()
@@ -199,7 +216,10 @@ describe('refreshExchangeRates', () => {
     const mockDb = { exchangeRate: { upsert: vi.fn() } } as any
     const mockFetch = vi.fn().mockRejectedValue(new Error('ECONNRESET'))
 
-    const result = await refreshExchangeRates(mockDb, mockFetch as unknown as typeof fetch)
+    const result = await refreshExchangeRates(
+      mockDb,
+      mockFetch as unknown as typeof fetch,
+    )
 
     expect(result).toEqual({ updated: 0, error: 'ECONNRESET' })
     expect(mockDb.exchangeRate.upsert).not.toHaveBeenCalled()
@@ -231,7 +251,7 @@ interface FxApiResponse {
 
 export async function refreshExchangeRates(
   db: PrismaClient,
-  fetchImpl: typeof fetch = fetch
+  fetchImpl: typeof fetch = fetch,
 ): Promise<{ updated: number; error?: string }> {
   let data: FxApiResponse
   try {
@@ -243,11 +263,17 @@ export async function refreshExchangeRates(
     // that's a real fault the cron should surface and retry on.)
     const response = await fetchImpl(FX_API_URL)
     if (!response.ok) {
-      return { updated: 0, error: `FX API responded with status ${response.status}` }
+      return {
+        updated: 0,
+        error: `FX API responded with status ${response.status}`,
+      }
     }
     data = (await response.json()) as FxApiResponse
   } catch (error) {
-    return { updated: 0, error: error instanceof Error ? error.message : 'FX API request failed' }
+    return {
+      updated: 0,
+      error: error instanceof Error ? error.message : 'FX API request failed',
+    }
   }
 
   if (data.result !== 'success') {
@@ -306,6 +332,7 @@ export async function GET(request: NextRequest) {
 - [ ] **Step 6: Register the cron schedule**
 
 If `vercel.json` doesn't exist yet, create it:
+
 ```json
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
@@ -317,14 +344,17 @@ If `vercel.json` doesn't exist yet, create it:
   ]
 }
 ```
+
 If it already exists (e.g. Recurring Transactions merged first and added its own entry), add this object to the existing `crons` array instead of overwriting the file.
 
 - [ ] **Step 7: Manual verification**
 
 With `CRON_SECRET` set in `.env.local`, run `npm run dev`, then:
+
 ```bash
 curl -H "Authorization: Bearer $CRON_SECRET" http://localhost:3000/api/cron/fx-rates
 ```
+
 Expected: `{"updated": <N>}` with N > 0. Confirm via `npx prisma studio` that `ExchangeRate` rows exist.
 
 - [ ] **Step 8: Commit**
@@ -339,6 +369,7 @@ git commit -m "feat(fx): add daily exchange rate refresh cron job"
 ### Task 3: Settings — base currency
 
 **Files:**
+
 - Create: `src/features/settings/actions.ts`
 - Create: `src/features/settings/actions.test.ts`
 - Create: `src/features/settings/components/BaseCurrencyForm.tsx`
@@ -346,6 +377,7 @@ git commit -m "feat(fx): add daily exchange rate refresh cron job"
 - Modify: `messages/es.json`, `messages/en.json` (add the `Settings` namespace)
 
 **Interfaces:**
+
 - Consumes: `requireSession`, `db`, `useSession`.
 - Produces: `updateBaseCurrency(currency)`.
 
@@ -363,7 +395,9 @@ const { mockRequireSession, mockDb } = vi.hoisted(() => ({
   mockDb: { user: { update: vi.fn() } },
 }))
 
-vi.mock('@/lib/auth/session', () => ({ requireSession: () => mockRequireSession() }))
+vi.mock('@/lib/auth/session', () => ({
+  requireSession: () => mockRequireSession(),
+}))
 vi.mock('@/lib/db', () => ({ db: mockDb }))
 
 import { updateBaseCurrency } from './actions'
@@ -553,6 +587,7 @@ git commit -m "feat(settings): add base currency setting"
 ### Task 4: Dashboard aggregation query
 
 **Files:**
+
 - Create: `src/features/dashboard/types.ts`
 - Create: `src/features/dashboard/period.ts`
 - Create: `src/features/dashboard/period.test.ts`
@@ -561,6 +596,7 @@ git commit -m "feat(settings): add base currency setting"
 - Create: `src/features/dashboard/queries.ts`
 
 **Interfaces:**
+
 - Consumes: `db`, `convertAmount`/`RateMap` (Task 1).
 - Produces: `Period`, `getPeriodRange(period, reference?)`, `computeSummary(transactions, rates, baseCurrency)`, `getDashboardSummary(userId, period, baseCurrency, reference?)` — consumed by Task 5's UI.
 
@@ -589,19 +625,28 @@ import { getPeriodRange } from './period'
 describe('getPeriodRange', () => {
   it('returns the Monday-to-Monday week range', () => {
     // 2026-07-04 is a Saturday
-    const { start, end } = getPeriodRange('week', new Date('2026-07-04T12:00:00Z'))
+    const { start, end } = getPeriodRange(
+      'week',
+      new Date('2026-07-04T12:00:00Z'),
+    )
     expect(start.toISOString().slice(0, 10)).toBe('2026-06-29') // Monday
     expect(end.toISOString().slice(0, 10)).toBe('2026-07-06') // next Monday
   })
 
   it('returns the calendar month range', () => {
-    const { start, end } = getPeriodRange('month', new Date('2026-07-15T12:00:00Z'))
+    const { start, end } = getPeriodRange(
+      'month',
+      new Date('2026-07-15T12:00:00Z'),
+    )
     expect(start.toISOString().slice(0, 10)).toBe('2026-07-01')
     expect(end.toISOString().slice(0, 10)).toBe('2026-08-01')
   })
 
   it('returns the calendar year range', () => {
-    const { start, end } = getPeriodRange('year', new Date('2026-07-15T12:00:00Z'))
+    const { start, end } = getPeriodRange(
+      'year',
+      new Date('2026-07-15T12:00:00Z'),
+    )
     expect(start.toISOString().slice(0, 10)).toBe('2026-01-01')
     expect(end.toISOString().slice(0, 10)).toBe('2027-01-01')
   })
@@ -619,7 +664,10 @@ Expected: FAIL — `Cannot find module './period'`.
 // src/features/dashboard/period.ts
 import type { Period } from './types'
 
-export function getPeriodRange(period: Period, reference: Date = new Date()): { start: Date; end: Date } {
+export function getPeriodRange(
+  period: Period,
+  reference: Date = new Date(),
+): { start: Date; end: Date } {
   const start = new Date(reference)
   const end = new Date(reference)
 
@@ -674,7 +722,11 @@ describe('computeSummary', () => {
   })
 
   it('returns zeroes for an empty transaction list', () => {
-    expect(computeSummary([], {}, 'USD')).toEqual({ income: 0, expense: 0, savings: 0 })
+    expect(computeSummary([], {}, 'USD')).toEqual({
+      income: 0,
+      expense: 0,
+      savings: 0,
+    })
   })
 })
 ```
@@ -700,13 +752,18 @@ export interface SummarizableTransaction {
 export function computeSummary(
   transactions: SummarizableTransaction[],
   rates: RateMap,
-  baseCurrency: string
+  baseCurrency: string,
 ): DashboardSummary {
   let income = 0
   let expense = 0
 
   for (const tx of transactions) {
-    const converted = convertAmount(Number(tx.amount), tx.currency, baseCurrency, rates)
+    const converted = convertAmount(
+      Number(tx.amount),
+      tx.currency,
+      baseCurrency,
+      rates,
+    )
     if (tx.type === 'INCOME') income += converted
     else expense += converted
   }
@@ -736,7 +793,7 @@ export async function getDashboardSummary(
   userId: string,
   period: Period,
   baseCurrency: string,
-  reference: Date = new Date()
+  reference: Date = new Date(),
 ): Promise<DashboardSummary> {
   cacheTag('transactions')
   cacheTag('exchange-rates')
@@ -744,16 +801,24 @@ export async function getDashboardSummary(
   const { start, end } = getPeriodRange(period, reference)
 
   const [transactions, rateRows] = await Promise.all([
-    db.transaction.findMany({ where: { userId, date: { gte: start, lt: end } } }),
+    db.transaction.findMany({
+      where: { userId, date: { gte: start, lt: end } },
+    }),
     db.exchangeRate.findMany(),
   ])
 
-  const rates: RateMap = Object.fromEntries(rateRows.map((r) => [r.targetCurrency, Number(r.rate)]))
+  const rates: RateMap = Object.fromEntries(
+    rateRows.map((r) => [r.targetCurrency, Number(r.rate)]),
+  )
 
   return computeSummary(
-    transactions.map((tx) => ({ type: tx.type, amount: Number(tx.amount), currency: tx.currency })),
+    transactions.map((tx) => ({
+      type: tx.type,
+      amount: Number(tx.amount),
+      currency: tx.currency,
+    })),
     rates,
-    baseCurrency
+    baseCurrency,
   )
 }
 ```
@@ -770,12 +835,14 @@ git commit -m "feat(dashboard): add period-aware, currency-converted summary que
 ### Task 5: Dashboard UI
 
 **Files:**
+
 - Create: `src/features/dashboard/components/PeriodSwitcher.tsx`
 - Create: `src/features/dashboard/components/SummaryCards.tsx`
 - Create: `src/app/[locale]/(dashboard)/dashboard/page.tsx`
 - Modify: `messages/es.json`, `messages/en.json` (add the `Dashboard` namespace)
 
 **Interfaces:**
+
 - Consumes: `getDashboardSummary`/`Period` (Task 4), `auth`/`headers` (Foundation), `redirect` (`@/i18n/navigation`).
 - Produces: the `/dashboard` page.
 
@@ -970,6 +1037,7 @@ git commit -m "feat(dashboard): build dashboard UI with period switcher"
 By this point Foundation, Categories, Transactions, Recurring Transactions, and this subsystem are all merged (or, if executed out of strict order, at least Foundation + Transactions + this subsystem — note in the walkthrough below if Recurring isn't merged yet and skip that portion).
 
 **Files:**
+
 - Modify: `README.md` (create if absent)
 
 - [ ] **Step 1: Run the full test suite**
@@ -977,6 +1045,7 @@ By this point Foundation, Categories, Transactions, Recurring Transactions, and 
 ```bash
 npm test
 ```
+
 Expected: all tests pass across every subsystem (categories, transactions, recurring-transactions, currency conversion, exchange rates, dashboard, settings).
 
 - [ ] **Step 2: Full manual walkthrough**

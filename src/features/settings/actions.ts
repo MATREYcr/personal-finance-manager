@@ -3,8 +3,7 @@ import { z } from 'zod'
 import { db } from '@/lib/db'
 import { requireSession } from '@/lib/auth/session'
 
-// Exactly three ASCII letters (an ISO-4217-shaped code), not just any 3-char
-// string — length alone would accept "1$X" and persist it as a "currency".
+// Must be 3 ASCII letters, not just any 3-char string, e.g. "1$X" would pass a length-only check.
 const currencySchema = z.string().regex(/^[A-Za-z]{3}$/)
 
 export async function updateBaseCurrency(currency: string) {

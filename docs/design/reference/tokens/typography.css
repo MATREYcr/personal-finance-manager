@@ -9,37 +9,37 @@
 
 :root {
   --font-heading: 'Geist', -apple-system, 'Segoe UI', system-ui, sans-serif;
-  --font-body:    'Geist', -apple-system, 'Segoe UI', system-ui, sans-serif;
+  --font-body: 'Geist', -apple-system, 'Segoe UI', system-ui, sans-serif;
 
   /* Type scale (px) */
-  --text-xs:   11px;
-  --text-sm:   12px;
+  --text-xs: 11px;
+  --text-sm: 12px;
   --text-base: 14px;
-  --text-md:   15px;
-  --text-lg:   17px;
-  --text-xl:   18px;
-  --text-2xl:  24px;
-  --text-3xl:  30px;
-  --text-4xl:  40px;
+  --text-md: 15px;
+  --text-lg: 17px;
+  --text-xl: 18px;
+  --text-2xl: 24px;
+  --text-3xl: 30px;
+  --text-4xl: 40px;
 
-  --leading-tight:  1.2;
-  --leading-snug:   1.35;
+  --leading-tight: 1.2;
+  --leading-snug: 1.35;
   --leading-normal: 1.5;
   --leading-relaxed: 1.65;
 
-  --weight-regular:  400;
-  --weight-medium:   500;
+  --weight-regular: 400;
+  --weight-medium: 500;
   --weight-semibold: 600;
-  --weight-bold:     700;
+  --weight-bold: 700;
 
   --tracking-tight: -0.01em;
   --tracking-normal: 0;
-  --tracking-wide:  0.05em;
+  --tracking-wide: 0.05em;
 }
 
 .font-tabular,
 .amount,
 [data-amount] {
   font-variant-numeric: tabular-nums;
-  font-feature-settings: "tnum" 1;
+  font-feature-settings: 'tnum' 1;
 }

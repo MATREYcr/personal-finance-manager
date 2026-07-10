@@ -8,7 +8,9 @@ const { mockRequireSession, mockDb } = vi.hoisted(() => ({
   },
 }))
 
-vi.mock('@/lib/auth/session', () => ({ requireSession: () => mockRequireSession() }))
+vi.mock('@/lib/auth/session', () => ({
+  requireSession: () => mockRequireSession(),
+}))
 vi.mock('@/lib/db', () => ({ db: mockDb }))
 vi.mock('next/cache', () => ({ updateTag: vi.fn() }))
 
@@ -22,11 +24,12 @@ describe('createRecurringTransaction', () => {
   })
 
   it('sets nextRunDate to the provided start date', async () => {
-    // Prisma resolves `amount` as a Decimal instance; mock a Decimal-like value
-    // (numeric valueOf/toString) so the assertion below also proves the
-    // action coerces it to a plain number before returning (see toPlainRule).
+    // Mocks Prisma's Decimal to prove the action coerces it to a plain number.
     const decimalLike = { valueOf: () => 3000, toString: () => '3000' }
-    mockDb.recurringTransaction.create.mockResolvedValue({ id: 'rec-1', amount: decimalLike })
+    mockDb.recurringTransaction.create.mockResolvedValue({
+      id: 'rec-1',
+      amount: decimalLike,
+    })
 
     const result = await createRecurringTransaction({
       categoryId: 'cat-1',
@@ -37,7 +40,6 @@ describe('createRecurringTransaction', () => {
       startDate: '2026-08-01',
     })
 
-    // The Decimal-like amount must have been coerced to a primitive number.
     expect(result).toEqual({ id: 'rec-1', amount: 3000 })
     expect(typeof result.amount).toBe('number')
     expect(mockDb.recurringTransaction.create).toHaveBeenCalledWith({

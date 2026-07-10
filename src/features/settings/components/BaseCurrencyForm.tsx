@@ -9,19 +9,19 @@ import { useSession } from '@/lib/auth/client'
 import { updateBaseCurrency } from '../actions'
 
 export function BaseCurrencyForm() {
-  // useSession() (better-auth, no cookieCache) is undefined on first render and
-  // resolves asynchronously. Gate the actual form behind a loaded session so its
-  // useState initializer captures the user's REAL baseCurrency — initializing
-  // from a still-undefined session would pin the input to 'USD' forever (the
-  // lazy initializer only runs once at mount) and silently overwrite a saved
-  // 'EUR' back to 'USD' on the next save.
+  // Gate on loaded session: initializing useState before session resolves would pin baseCurrency to 'USD' forever.
   const { data: session, isPending } = useSession()
   if (isPending || !session) return null
-  const initialCurrency = (session.user as { baseCurrency?: string }).baseCurrency ?? 'USD'
+  const initialCurrency =
+    (session.user as { baseCurrency?: string }).baseCurrency ?? 'USD'
   return <BaseCurrencyFormFields initialCurrency={initialCurrency} />
 }
 
-function BaseCurrencyFormFields({ initialCurrency }: { initialCurrency: string }) {
+function BaseCurrencyFormFields({
+  initialCurrency,
+}: {
+  initialCurrency: string
+}) {
   const t = useTranslations('Settings')
   const tCommon = useTranslations('Common.actions')
   const router = useRouter()
@@ -29,7 +29,6 @@ function BaseCurrencyFormFields({ initialCurrency }: { initialCurrency: string }
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
 
-  // Auto-hide the "Saved" confirmation after a few seconds rather than leaving it on screen forever.
   useEffect(() => {
     if (!saved) return
     const timeout = setTimeout(() => setSaved(false), 3000)
@@ -47,7 +46,7 @@ function BaseCurrencyFormFields({ initialCurrency }: { initialCurrency: string }
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4 max-w-xs">
+    <form onSubmit={handleSubmit} className="max-w-xs space-y-4">
       <Label htmlFor="baseCurrency">{t('baseCurrency')}</Label>
       <Input
         id="baseCurrency"
@@ -56,8 +55,14 @@ function BaseCurrencyFormFields({ initialCurrency }: { initialCurrency: string }
         onChange={(e) => setCurrency(e.target.value.toUpperCase())}
       />
       <div className="flex items-center gap-3">
-        <Button type="submit" disabled={saving}>{tCommon('save')}</Button>
-        {saved && <span className="text-sm font-medium text-(--positive)">{t('saved')}</span>}
+        <Button type="submit" disabled={saving}>
+          {tCommon('save')}
+        </Button>
+        {saved && (
+          <span className="text-sm font-medium text-(--positive)">
+            {t('saved')}
+          </span>
+        )}
       </div>
     </form>
   )
